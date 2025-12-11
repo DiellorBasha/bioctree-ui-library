@@ -1,0 +1,12 @@
+# requirements.txt for MkDocs documentation
+
+# Core
+mkdocs>=1.5.0
+mkdocs-material>=9.0.0
+
+# Plugins
+mkdocstrings>=0.24.0
+mkdocstrings-python>=1.7.0
+
+# Extensions (usually included with mkdocs-material)
+pymdown-extensions>=10.0
