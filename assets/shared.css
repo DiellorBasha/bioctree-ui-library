@@ -1,0 +1,177 @@
+/* ============================================================
+   Bioctree UI — Shared Stylesheet (shared.css)
+   Tailwind-compatible custom utility classes
+   ============================================================ */
+
+/* ------------------------------------------------------------
+   1. Global Theme (Dark-first Design)
+   ------------------------------------------------------------ */
+body {
+    @apply bg-slate-900 text-slate-200 antialiased;
+}
+
+.bct-panel {
+    @apply bg-slate-800/40 border border-slate-700 rounded-xl p-4 shadow-md;
+}
+
+.bct-card {
+    @apply bg-slate-800/60 border border-slate-700 rounded-lg p-3 shadow;
+}
+
+.bct-title {
+    @apply text-lg font-semibold text-slate-100 mb-2;
+}
+
+.bct-subtitle {
+    @apply text-sm font-medium text-slate-400 mb-1;
+}
+
+/* ------------------------------------------------------------
+   2. Toolstrip & Toolbar Buttons
+   ------------------------------------------------------------ */
+
+.bct-toolbar {
+    @apply flex flex-row gap-2 p-2 bg-slate-800/50 border-b border-slate-700;
+}
+
+.bct-icon-btn {
+    @apply p-2 rounded-lg
+           bg-slate-800/40
+           hover:bg-slate-700/60
+           active:bg-slate-600
+           transition
+           border border-slate-700
+           flex items-center justify-center;
+}
+
+.bct-icon-btn-active {
+    @apply bg-blue-600 border-blue-500 hover:bg-blue-500;
+}
+
+/* Global icon styling */
+.bct-icon svg {
+    @apply w-6 h-6 stroke-slate-300 transition;
+}
+
+.bct-icon:hover svg {
+    @apply stroke-blue-400;
+}
+
+/* ------------------------------------------------------------
+   3. Buttons (Primary / Secondary / Ghost)
+   ------------------------------------------------------------ */
+.bct-btn {
+    @apply px-4 py-1.5 rounded-lg font-medium
+           border transition;
+}
+
+.bct-btn-primary {
+    @apply bg-blue-600 border-blue-500 text-white
+           hover:bg-blue-500 active:bg-blue-700;
+}
+
+.bct-btn-secondary {
+    @apply bg-slate-700 border-slate-600 text-slate-200
+           hover:bg-slate-600 active:bg-slate-500;
+}
+
+.bct-btn-ghost {
+    @apply bg-transparent border-transparent text-slate-300
+           hover:bg-slate-800/50;
+}
+
+/* ------------------------------------------------------------
+   4. Sliders & Scrubbers (non-D3 HTML components)
+   ------------------------------------------------------------ */
+
+.bct-slider-track {
+    @apply h-2 rounded-full bg-slate-700/70;
+}
+
+.bct-slider-thumb {
+    @apply w-4 h-4 bg-blue-500 rounded-full shadow
+           hover:bg-blue-400 active:bg-blue-600 transition;
+}
+
+/* ------------------------------------------------------------
+   5. Scrollbars (Dark Mode Optimized)
+   ------------------------------------------------------------ */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    @apply bg-slate-800;
+}
+
+::-webkit-scrollbar-thumb {
+    @apply bg-slate-600 rounded-md hover:bg-slate-500;
+}
+
+/* ------------------------------------------------------------
+   6. Utility Classes for Layout & Panels
+   ------------------------------------------------------------ */
+
+.bct-section {
+    @apply mb-4 p-2 border-b border-slate-700;
+}
+
+.bct-row {
+    @apply flex flex-row items-center gap-3;
+}
+
+.bct-column {
+    @apply flex flex-col gap-2;
+}
+
+.bct-label {
+    @apply text-slate-300 font-medium;
+}
+
+.bct-value {
+    @apply text-slate-100 font-semibold;
+}
+
+/* ------------------------------------------------------------
+   7. D3 Integration Helpers
+   ------------------------------------------------------------ */
+
+.bct-d3-container {
+    @apply w-full h-full bg-slate-900;
+}
+
+.bct-d3-axis text {
+    @apply fill-slate-300 text-xs;
+}
+
+.bct-d3-grid line {
+    @apply stroke-slate-700/60;
+}
+
+.bct-d3-handle {
+    @apply stroke-blue-400 fill-blue-500 cursor-pointer;
+}
+
+/* ------------------------------------------------------------
+   8. Transitions / Animation Helpers
+   ------------------------------------------------------------ */
+
+.bct-fade-in {
+    animation: fadeIn 0.2s ease-out forwards;
+}
+
+.bct-fade-out {
+    animation: fadeOut 0.2s ease-in forwards;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(3px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fadeOut {
+    from { opacity: 1; transform: translateY(0); }
+    to   { opacity: 0; transform: translateY(3px); }
+}
+

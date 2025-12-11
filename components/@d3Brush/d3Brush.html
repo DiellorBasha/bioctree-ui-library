@@ -1,0 +1,37 @@
+<!-- D3 Brush Snapping Component -->
+<html>
+<head>
+    <title>D3 Brush Snapping</title>
+    <!-- Load component CSS -->
+    <link rel="stylesheet" href="d3Brush.css">
+</head>
+<body>
+    <!-- The D3 brush will be rendered in this div -->
+    <div class="brush-container"></div>
+</body>
+
+<!-- Load D3 library from component vendor directory (encapsulated dependency) -->
+<script src="vendor/d3.v5.9.2.min.js"></script>
+
+<!-- Load rendering logic (pure D3 visualization) -->
+<script src="d3Brush.render.js"></script>
+
+<!-- Load component controller (lifecycle & MATLAB communication) -->
+<script src="d3Brush.js"></script>
+
+<script>
+    // Validate D3 is loaded
+    if (typeof d3 === 'undefined') {
+        console.error('[d3Brush] D3.js library failed to load. Check path: vendor/d3.v5.9.2.min.js');
+    } else {
+        console.log('[d3Brush] D3.js version:', d3.version, '(Expected: 5.9.2)');
+    }
+
+    // Validate D3 is loaded
+    if (typeof d3 === 'undefined') {
+        console.error('[d3Brush] D3.js library failed to load. Check path: vendor/d3.v5.9.2.min.js');
+    } else {
+        console.log('[d3Brush] D3.js version:', d3.version, '(Expected: 5.9.2)');
+    }
+</script>
+</html>

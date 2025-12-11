@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "name": "bioctree-ui-library",
+  "version": "1.0.0",
+  "description": "Library of custom UI components built with D3.js for integration with MATLAB",
+  "components": {
+    "d3Brush": {
+      "version": "1.0.0",
+      "description": "Interactive brush component with snapping for range selection",
+      "d3_version": "5.9.2",
+      "d3_event_model": "v5",
+      "matlab_version": "R2020b+",
+      "files": {
+        "matlab_class": "components/@d3Brush/d3Brush.m",
+        "html": "components/@d3Brush/d3Brush.html",
+        "css": "components/@d3Brush/d3Brush.css",
+        "controller": "components/@d3Brush/d3Brush.js",
+        "renderer": "components/@d3Brush/d3Brush.render.js",
+        "vendor": "components/@d3Brush/vendor/d3.v5.9.2.min.js"
+      },
+      "compatibility_notes": "Uses D3 v5 event model (d3.event global). Do NOT upgrade to D3 v6+ without updating event signatures in brush handlers."
+    }
+  },
+  "libraries": {
+    "d3": {
+      "versions": {
+        "5.9.2": {
+          "path": "lib/d3/d3.v5.9.2.min.js",
+          "event_model": "v5",
+          "event_handling": "Uses d3.event global variable. Event handlers do NOT receive event as parameter.",
+          "notes": "Current version used by d3Brush component. Breaking changes in v6+."
+        }
+      },
+      "active_version": "5.9.2",
+      "migration_notes": {
+        "v5_to_v6": "D3 v6+ passes event as first parameter to callbacks. Must update all event handlers: function() { var event = d3.event; } → function(event) { }",
+        "v6_to_v7": "API stable between v6 and v7 for event handling."
+      }
+    }
+  },
+  "testing": {
+    "browser_tests": "tests/html/",
+    "matlab_tests": "tests/matlab/",
+    "test_utilities": "tests/html/test-utils.js"
+  },
+  "documentation": {
+    "main": "README.md",
+    "copilot_instructions": ".github/copilot-instructions.md",
+    "component_readmes": "components/@ComponentName/README.md"
+  }
+}

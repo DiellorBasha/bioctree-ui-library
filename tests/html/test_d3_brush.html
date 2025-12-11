@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>D3 Brush Component Test</title>
+    
+    <!-- Load D3 library (version-locked for compatibility) -->
+    <script src="../../components/@d3Brush/vendor/d3.v5.9.2.min.js"></script>
+    
+    <!-- Load test utilities -->
+    <script src="./test-utils.js"></script>
+    
+    <!-- Load component CSS -->
+    <link rel="stylesheet" href="../../components/@d3Brush/d3Brush.css">
+    
+    <!-- Load component rendering logic -->
+    <script src="../../components/@d3Brush/d3Brush.render.js"></script>
+    
+    <!-- Load component controller -->
+    <script src="../../components/@d3Brush/d3Brush.js"></script>
+    
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+            overflow-y: auto;
+        }
+        
+        .test-container {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .test-title {
+            font-size: 18px;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 10px;
+        }
+        
+        .test-description {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 15px;
+        }
+        
+        .brush-container {
+            width: 100%;
+            height: 150px;
+            border: 1px solid #ddd;
+            margin-bottom: 15px;
+        }
+        
+        .controls {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-bottom: 10px;
+        }
+        
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        
+        .control-group label {
+            font-size: 12px;
+            color: #666;
+        }
+        
+        .control-group input,
+        .control-group button {
+            padding: 5px 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        
+        .control-group button {
+            background: #007bff;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+        
+        .control-group button:hover {
+            background: #0056b3;
+        }
+        
+        .event-log {
+            background: #f8f9fa;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 10px;
+            max-height: 200px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+        }
+        
+        .event-log-entry {
+            padding: 2px 0;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .event-log-entry:last-child {
+            border-bottom: none;
+        }
+        
+        .event-type {
+            font-weight: bold;
+            color: #007bff;
+        }
+        
+        .test-status {
+            padding: 10px;
+            border-radius: 4px;
+            margin-top: 10px;
+            font-weight: bold;
+        }
+        
+        .test-status.pass {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .test-status.fail {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+    </style>
+</head>
+<body>
+    <h1>D3 Brush Component Browser Tests</h1>
+    <p>Open the browser console (F12) for detailed logs and debugging.</p>
+    
+    <!-- Test 1: Basic Rendering -->
+    <div class="test-container">
+        <div class="test-title">Test 1: Basic Rendering</div>
+        <div class="test-description">Verify component renders with default values</div>
+        <div id="brush1" class="brush-container"></div>
+        <div class="controls">
+            <button onclick="runTest1()">Run Test</button>
+        </div>
+        <div id="test1-status"></div>
+        <div id="log1" class="event-log"></div>
+    </div>
+    
+    <!-- Test 2: Property Updates -->
+    <div class="test-container">
+        <div class="test-title">Test 2: Dynamic Property Updates</div>
+        <div class="test-description">Test updating min, max, snapInterval, and value</div>
+        <div id="brush2" class="brush-container"></div>
+        <div class="controls">
+            <div class="control-group">
+                <label>Min:</label>
+                <input type="number" id="min2" value="0">
+            </div>
+            <div class="control-group">
+                <label>Max:</label>
+                <input type="number" id="max2" value="100">
+            </div>
+            <div class="control-group">
+                <label>Snap Interval:</label>
+                <input type="number" id="snap2" value="5">
+            </div>
+            <div class="control-group">
+                <label>Selection Start:</label>
+                <input type="number" id="start2" value="20">
+            </div>
+            <div class="control-group">
+                <label>Selection End:</label>
+                <input type="number" id="end2" value="60">
+            </div>
+            <button onclick="updateBrush2()">Update Properties</button>
+        </div>
+        <div id="log2" class="event-log"></div>
+    </div>
+    
+    <!-- Test 3: Event Handling -->
+    <div class="test-container">
+        <div class="test-title">Test 3: Event Handling</div>
+        <div class="test-description">
+            <strong>👆 Interact with the brush to test events:</strong>
+            <ul style="margin: 5px 0; padding-left: 20px; font-size: 13px;">
+                <li>Click and drag the blue selection to move it</li>
+                <li>Drag the handles on the edges to resize</li>
+                <li>Click outside to create a new selection</li>
+            </ul>
+            Events will appear in the log below as you interact.
+        </div>
+        <div id="brush3" class="brush-container"></div>
+        <div id="log3" class="event-log"></div>
+    </div>
+    
+    <!-- Test 4: Edge Cases -->
+    <div class="test-container">
+        <div class="test-title">Test 4: Edge Cases & Validation</div>
+        <div class="test-description">Test invalid data, empty containers, and boundary conditions</div>
+        <div id="brush4" class="brush-container"></div>
+        <div class="controls">
+            <button onclick="testNullData()">Test Null Data</button>
+            <button onclick="testInvalidRange()">Test Invalid Range (min >= max)</button>
+            <button onclick="testZeroSize()">Test Zero Size Container</button>
+            <button onclick="testNegativeSnap()">Test Negative Snap</button>
+        </div>
+        <div id="test4-status"></div>
+        <div id="log4" class="event-log"></div>
+    </div>
+    
+    <!-- Test 5: Responsive Sizing -->
+    <div class="test-container">
+        <div class="test-title">Test 5: Responsive Sizing</div>
+        <div class="test-description">Resize the container to test responsive behavior</div>
+        <div id="brush5" class="brush-container" style="height: 200px; resize: both; overflow: auto;"></div>
+        <div class="controls">
+            <button onclick="resizeBrush5('small')">Small (300x100)</button>
+            <button onclick="resizeBrush5('medium')">Medium (600x150)</button>
+            <button onclick="resizeBrush5('large')">Large (900x200)</button>
+        </div>
+        <div id="log5" class="event-log"></div>
+    </div>
+
+    <script>
+        // Helper function to create mock component and log messages
+        function logMessage(logId, message, type = 'info') {
+            TestLogger.logMessage(logId, message, type);
+        }
+        
+        // Test 1: Basic Rendering
+        function runTest1() {
+            const logId = 'log1';
+            const statusDiv = document.getElementById('test1-status');
+            logMessage(logId, 'Starting Test 1: Basic Rendering', 'info');
+            
+            try {
+                const mockComponent = new MockHTMLComponent('brush1', logId);
+                const data = {
+                    min: 0,
+                    max: 100,
+                    snapInterval: 5,
+                    initialSelection: [20, 60]
+                };
+                
+                logMessage(logId, `Calling renderBrush with data: ${JSON.stringify(data)}`, 'info');
+                renderBrush(data, mockComponent);
+                
+                // Check if SVG was created
+                const svg = document.querySelector('#brush1 svg');
+                if (svg) {
+                    logMessage(logId, '✓ SVG element created successfully', 'success');
+                    TestStatus.pass('test1-status', 'Test 1 PASSED');
+                } else {
+                    logMessage(logId, '✗ SVG element not found', 'error');
+                    TestStatus.fail('test1-status', 'Test 1 FAILED');
+                }
+            } catch (error) {
+                logMessage(logId, `✗ Error: ${error.message}`, 'error');
+                TestStatus.fail('test1-status', 'Test 1 FAILED');
+            }
+        }
+        
+        // Test 2: Property Updates
+        let brush2Component;
+        function initBrush2() {
+            brush2Component = new MockHTMLComponent('brush2', 'log2');
+            const data = {
+                min: 0,
+                max: 100,
+                snapInterval: 5,
+                initialSelection: [20, 60]
+            };
+            renderBrush(data, brush2Component);
+            logMessage('log2', 'Brush 2 initialized', 'info');
+        }
+        
+        function updateBrush2() {
+            const min = parseFloat(document.getElementById('min2').value);
+            const max = parseFloat(document.getElementById('max2').value);
+            const snap = parseFloat(document.getElementById('snap2').value);
+            const start = parseFloat(document.getElementById('start2').value);
+            const end = parseFloat(document.getElementById('end2').value);
+            
+            const data = {
+                min: min,
+                max: max,
+                snapInterval: snap,
+                initialSelection: [start, end]
+            };
+            
+            logMessage('log2', `Updating brush with: ${JSON.stringify(data)}`, 'info');
+            renderBrush(data, brush2Component);
+        }
+        
+        // Test 3: Event Handling
+        function initBrush3() {
+            const mockComponent = new MockHTMLComponent('brush3', 'log3');
+            const data = {
+                min: 0,
+                max: 100,
+                snapInterval: 10,
+                initialSelection: [30, 70]
+            };
+            renderBrush(data, mockComponent);
+            logMessage('log3', 'Brush 3 initialized. Try dragging the brush to see events!', 'info');
+        }
+        
+        // Test 4: Edge Cases
+        function testNullData() {
+            const logId = 'log4';
+            logMessage(logId, 'Testing with null data...', 'info');
+            const mockComponent = new MockHTMLComponent('brush4', logId);
+            renderBrush(null, mockComponent);
+            logMessage(logId, '✓ Null data handled gracefully (check console for errors)', 'success');
+        }
+        
+        function testInvalidRange() {
+            const logId = 'log4';
+            logMessage(logId, 'Testing with invalid range (min >= max)...', 'info');
+            const mockComponent = new MockHTMLComponent('brush4', logId);
+            const data = {
+                min: 100,
+                max: 0,
+                snapInterval: 5,
+                initialSelection: [20, 60]
+            };
+            renderBrush(data, mockComponent);
+            logMessage(logId, '✓ Invalid range handled gracefully (check console for errors)', 'success');
+        }
+        
+        function testZeroSize() {
+            const logId = 'log4';
+            logMessage(logId, 'Testing with zero-size container...', 'info');
+            const container = document.getElementById('brush4');
+            const originalHeight = container.style.height;
+            container.style.height = '0px';
+            
+            const mockComponent = new MockHTMLComponent('brush4', logId);
+            const data = {
+                min: 0,
+                max: 100,
+                snapInterval: 5,
+                initialSelection: [20, 60]
+            };
+            renderBrush(data, mockComponent);
+            
+            container.style.height = originalHeight;
+            logMessage(logId, '✓ Zero-size container handled (restored height)', 'success');
+        }
+        
+        function testNegativeSnap() {
+            const logId = 'log4';
+            logMessage(logId, 'Testing with negative snap interval...', 'info');
+            const mockComponent = new MockHTMLComponent('brush4', logId);
+            const data = {
+                min: 0,
+                max: 100,
+                snapInterval: -5,
+                initialSelection: [20, 60]
+            };
+            renderBrush(data, mockComponent);
+            logMessage(logId, '✓ Negative snap interval handled (check console for warnings)', 'success');
+        }
+        
+        // Test 5: Responsive Sizing
+        let brush5Component;
+        function initBrush5() {
+            brush5Component = new MockHTMLComponent('brush5', 'log5');
+            const data = {
+                min: 0,
+                max: 100,
+                snapInterval: 5,
+                initialSelection: [20, 60]
+            };
+            renderBrush(data, brush5Component);
+            logMessage('log5', 'Brush 5 initialized', 'info');
+        }
+        
+        function resizeBrush5(size) {
+            const container = document.getElementById('brush5');
+            const sizes = {
+                'small': { width: '300px', height: '100px' },
+                'medium': { width: '600px', height: '150px' },
+                'large': { width: '900px', height: '200px' }
+            };
+            
+            container.style.width = sizes[size].width;
+            container.style.height = sizes[size].height;
+            
+            logMessage('log5', `Resized to ${size}: ${sizes[size].width} x ${sizes[size].height}`, 'info');
+            
+            // Redraw to test responsiveness
+            const data = {
+                min: 0,
+                max: 100,
+                snapInterval: 5,
+                initialSelection: [20, 60]
+            };
+            renderBrush(data, brush5Component);
+        }
+        
+        // Initialize tests on page load
+        window.addEventListener('load', function() {
+            console.log('[Test Suite] Initializing D3 Brush tests...');
+            initBrush2();
+            initBrush3();
+            initBrush5();
+            console.log('[Test Suite] All tests initialized. Check console for detailed logs.');
+        });
+    </script>
+</body>
+</html>
