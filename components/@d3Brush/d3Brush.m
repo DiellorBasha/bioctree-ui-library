@@ -2,6 +2,14 @@ classdef d3Brush < matlab.ui.componentcontainer.ComponentContainer
     % D3Brush - Interactive brush component using D3.js with snapping
     % Version: 1.0.0
     % Based on https://observablehq.com/@d3/brush-snapping
+    %
+    % Component Structure:
+    %   - d3Brush.m: MATLAB class (this file)
+    %   - d3Brush.html: HTML template
+    %   - d3Brush.css: Component styles
+    %   - d3Brush.js: Controller (lifecycle and MATLAB communication)
+    %   - d3Brush.render.js: Renderer (D3 visualization logic)
+    %   - vendor/d3.v5.9.2.min.js: Bundled D3.js dependency
     
     properties
         % Public properties that users can set
@@ -78,9 +86,8 @@ classdef d3Brush < matlab.ui.componentcontainer.ComponentContainer
             % Use relative path for HTMLSource (required for toolbox packaging)
             comp.HTMLComponent.HTMLSource = 'd3Brush.html';
             
-            % Use normalized units to ensure proper resizing in containers
-            comp.HTMLComponent.Units = 'normalized';
-            comp.HTMLComponent.Position = [0 0 1 1];
+            % HTML components automatically fill their parent container
+            % No need to set Position - the ComponentContainer handles layout
             
             % Set up event listener for HTML events from JavaScript
             comp.HTMLComponent.HTMLEventReceivedFcn = @(src, event) comp.handleBrushEvent(event);
@@ -131,8 +138,9 @@ classdef d3Brush < matlab.ui.componentcontainer.ComponentContainer
                     % Notify that brush interaction started
                     notify(comp, 'BrushStarted');
                     
-                case 'BrushMoving'
+                case {'BrushMoving', 'ValueChanging'}
                     % Throttle rapid brush movement events
+                    % Accept both event names for compatibility
                     if isfield(eventData, 'selection') && ~isempty(eventData.selection)
                         comp.PendingSelection = eventData.selection;
                         
@@ -169,25 +177,37 @@ classdef d3Brush < matlab.ui.componentcontainer.ComponentContainer
         
         function processPendingSelection(comp)
             % Process throttled brush movement
-            if ~isempty(comp.PendingSelection)
-                oldValue = comp.Value_;
-                comp.Value_ = comp.PendingSelection;
-                
-                % Create event data for ValueChanging
-                evtData = matlab.ui.eventdata.ValueChangedData(oldValue, comp.Value_);
-                
-                % Notify ValueChanging (not ValueChanged - that's for release)
-                notify(comp, 'ValueChanging', evtData);
-                
-                comp.PendingSelection = [];
+            if ~isempty(comp.PendingSelection) && isvalid(comp)
+                try
+                    oldValue = comp.Value_;
+                    comp.Value_ = comp.PendingSelection;
+                    
+                    % Create event data for ValueChanging
+                    evtData = matlab.ui.eventdata.ValueChangedData(oldValue, comp.Value_);
+                    
+                    % Notify ValueChanging (not ValueChanged - that's for release)
+                    notify(comp, 'ValueChanging', evtData);
+                    
+                    comp.PendingSelection = [];
+                catch ME
+                    % Handle case where component is being deleted
+                    warning('d3Brush:ProcessingError', 'Error processing selection: %s', ME.message);
+                end
             end
         end
         
         function delete(comp)
             % Clean up timer on component deletion
-            if ~isempty(comp.ThrottleTimer) && isvalid(comp.ThrottleTimer)
-                stop(comp.ThrottleTimer);
-                delete(comp.ThrottleTimer);
+            try
+                if ~isempty(comp.ThrottleTimer) && isvalid(comp.ThrottleTimer)
+                    if strcmp(comp.ThrottleTimer.Running, 'on')
+                        stop(comp.ThrottleTimer);
+                    end
+                    delete(comp.ThrottleTimer);
+                end
+            catch ME
+                % Silently catch timer cleanup errors during deletion
+                % Timer may already be deleted in some edge cases
             end
         end
     end

@@ -75,10 +75,15 @@ All components must implement:
    comp.HTMLComponent.HTMLSource = 'ComponentName.html';  % Correct - matches class name
    ```
 
-2. **Use normalized units for layout** - Never set pixel positions manually
+2. **HTML components auto-fill their container** - Don't set Units or Position manually
    ```matlab
-   comp.HTMLComponent.Units = 'normalized';
-   comp.HTMLComponent.Position = [0 0 1 1];  % Fill container
+   % Incorrect - Units/Position not supported on HTML components
+   % comp.HTMLComponent.Units = 'normalized';
+   % comp.HTMLComponent.Position = [0 0 1 1];
+   
+   % Correct - HTML component automatically fills the ComponentContainer
+   comp.HTMLComponent = uihtml(comp);
+   comp.HTMLComponent.HTMLSource = 'ComponentName.html';
    ```
 
 3. **Property validation** - Use dependent properties with setters for complex validation
