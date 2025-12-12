@@ -3,27 +3,35 @@ function createComponentTemplate(name, varargin)
 %
 % Syntax:
 %   createComponentTemplate(name)
-%   createComponentTemplate(name, 'type', componentType)
-%   createComponentTemplate(name, 'type', componentType, 'isView', true)
+%   createComponentTemplate(name, 'library', libraryType)
+%   createComponentTemplate(name, 'library', libraryType, 'type', componentType)
+%   createComponentTemplate(name, 'library', libraryType, 'type', componentType, 'testData', dataPath)
 %
 % Arguments:
 %   name - Component name (string)
-%   'type' - 'observable-plot' (default), 'd3', or 'custom'
-%   'isView' - true for views (one-way), false for components (default: false)
+%   'library' - 'observable-plot' (default), 'd3', or 'custom'
+%   'type' - 'view' (one-way) or 'component' (bidirectional, default: 'component')
+%   'testData' - Optional path to test data file (e.g., '../data/faithful.tsv')
 %
 % Examples:
-%   createComponentTemplate("MyChart", "type", "observable-plot", "isView", true)
-%   createComponentTemplate("MyBrush", "type", "d3")
+%   createComponentTemplate("MyChart", "library", "observable-plot", "type", "view")
+%   createComponentTemplate("MyBrush", "library", "d3", "type", "component")
+%   createComponentTemplate("MyPlot", "library", "observable-plot", "type", "view", "testData", "../data/faithful.tsv")
 
 % Parse input arguments
 p = inputParser;
 addRequired(p, 'name', @isstring);
-addParameter(p, 'type', 'observable-plot', @isstring);
-addParameter(p, 'isView', false, @islogical);
+addParameter(p, 'library', 'observable-plot', @isstring);
+addParameter(p, 'type', 'component', @isstring);
+addParameter(p, 'testData', '', @isstring);
 parse(p, name, varargin{:});
 
+libraryType = p.Results.library;
 componentType = p.Results.type;
-isView = p.Results.isView;
+testDataPath = p.Results.testData;
+
+% Determine if this is a view or component
+isView = strcmpi(componentType, 'view');
 
 % Determine base directory
 if isView
@@ -47,6 +55,7 @@ if ~exist(vendorDir, "dir")
     mkdir(vendorDir);
 end
 
+
 % Switch based on library type
 switch lower(libraryType)
     case 'observable-plot'
@@ -60,15 +69,32 @@ switch lower(libraryType)
         createCustomComponent(name, base, webDir, vendorDir, isView);
 end
 
+% Generate test files if requested
+if ~isempty(testDataPath)
+    generateTestFiles(name, libraryType, isView, testDataPath);
+end
+
 % Display success message
-typeStr = componentType;  % "component" or "view"
+if isView
+    typeStr = "view";
+    dataFlowStr = "one-way data flow";
+    dirStr = "views";
+else
+    typeStr = "component";
+    dataFlowStr = "bidirectional with events";
+    dirStr = "components";
+end
+
 disp("Template created:");
 disp("  Name: " + name);
-disp("  Type: " + typeStr + " (" + (isView ? "one-way data flow" : "bidirectional with events") + ")");
+disp("  Type: " + typeStr + " (" + dataFlowStr + ")");
 disp("  Library: " + libraryType);
+if ~isempty(testDataPath)
+    disp("  Test data: " + testDataPath);
+end
 disp("");
 disp("Structure:");
-disp("  " + (isView ? "views" : "components") + "/@" + name + "/");
+disp("  " + dirStr + "/@" + name + "/");
 disp("    ├── " + name + ".m");
 disp("    ├── README.md");
 disp("    └── web/");
@@ -83,11 +109,17 @@ if strcmpi(libraryType, 'observable-plot')
 elseif strcmpi(libraryType, 'd3')
     disp("            └── d3.v5.9.2.min.js");
 end
+
+if ~isempty(testDataPath)
+    disp("");
+    disp("Test files:");
+    disp("  tests/html/test_" + name + ".html");
+    disp("  tests/matlab/test_" + name + ".m");
+end
 end
 
-function createCustomComponent(name, base, webDir, vendorDir, isView)
+function createCustomComponent(name, base, webDir, ~, ~)
 % Create custom component using original template logic
-
 % Files to create
 files = struct();
 files.m = fullfile(base, name + ".m");
@@ -478,6 +510,8 @@ function matlabClass = createD3ComponentMatlabClass(name)
         "end" + newline ...
     ];
 end
+
+function readme = createReadme(name, library, isView)
 % Generate README content
     componentType = "View";
     if ~isView
@@ -631,5 +665,120 @@ function createD3Component(name, base, webDir, vendorDir, isView)
     writeFile(fullfile(base, "README.md"), readmeContent);
 end
 
-function createCustomComponent(name, base, webDir, vendorDir, isView)
-% Create custom component using original template logic
+function generateTestFiles(name, libraryType, isView, testDataPath)
+% Generate HTML and MATLAB test files for the component
+    
+    % Determine component path
+    if isView
+        componentPath = "views/@" + name;
+        componentTypeStr = "view";
+        componentTypeUpper = "VIEW";
+    else
+        componentPath = "components/@" + name;
+        componentTypeStr = "component";
+        componentTypeUpper = "COMPONENT";
+    end
+    
+    % Create test directories if they don't exist
+    htmlTestDir = fullfile(pwd, "tests", "html");
+    matlabTestDir = fullfile(pwd, "tests", "matlab");
+    if ~exist(htmlTestDir, "dir")
+        mkdir(htmlTestDir);
+    end
+    if ~exist(matlabTestDir, "dir")
+        mkdir(matlabTestDir);
+    end
+    
+    % Determine which template to use
+    if strcmpi(libraryType, 'observable-plot')
+        templateDir = fullfile(pwd, "utils", "templates", "observable-plot");
+        libraryScripts = [ ...
+            "    <script src=""../../lib/observable-plot/d3.min.js""></script>" + newline + ...
+            "    <script src=""../../lib/observable-plot/plot.min.js""></script>" ...
+        ];
+        libraryDescription = "Observable Plot v0.6.17 (UMD build)";
+    elseif strcmpi(libraryType, 'd3')
+        templateDir = fullfile(pwd, "utils", "templates", "d3");
+        libraryScripts = "    <script src=""../../lib/d3/d3.v5.9.2.min.js""></script>";
+        libraryDescription = "D3.js v5.9.2";
+    else
+        % Custom template - basic setup
+        templateDir = fullfile(pwd, "utils", "templates", "d3");
+        libraryScripts = "    <!-- TODO: Add library scripts -->";
+        libraryDescription = "Custom libraries";
+    end
+    
+    % Placeholder replacements
+    containerClass = lower(name) + "-container";
+    renderFunction = "render" + name;
+    
+    % Read and process HTML test template
+    htmlTestTemplate = fileread(fullfile(templateDir, "test.html"));
+    htmlTestTemplate = strrep(htmlTestTemplate, "{{COMPONENT_NAME}}", name);
+    htmlTestTemplate = strrep(htmlTestTemplate, "{{COMPONENT_PATH}}", componentPath);
+    htmlTestTemplate = strrep(htmlTestTemplate, "{{CONTAINER_CLASS}}", containerClass);
+    htmlTestTemplate = strrep(htmlTestTemplate, "{{RENDER_FUNCTION}}", renderFunction);
+    htmlTestTemplate = strrep(htmlTestTemplate, "{{LIBRARY_SCRIPTS}}", libraryScripts);
+    
+    % Add data loading code if test data path is provided
+    if ~isempty(testDataPath)
+        [~, ~, ext] = fileparts(testDataPath);
+        if strcmpi(ext, '.csv')
+            dataLoadCode = "        d3.csv('" + testDataPath + "', d3.autoType).then(function(data) {" + newline + ...
+                          "            testData = data;" + newline + ...
+                          "            runTests();" + newline + ...
+                          "        });";
+        elseif strcmpi(ext, '.tsv')
+            dataLoadCode = "        d3.tsv('" + testDataPath + "', d3.autoType).then(function(data) {" + newline + ...
+                          "            testData = data;" + newline + ...
+                          "            runTests();" + newline + ...
+                          "        });";
+        elseif strcmpi(ext, '.json')
+            dataLoadCode = "        d3.json('" + testDataPath + "').then(function(data) {" + newline + ...
+                          "            testData = data;" + newline + ...
+                          "            runTests();" + newline + ...
+                          "        });";
+        else
+            dataLoadCode = "        // TODO: Add data loading code for " + testDataPath;
+        end
+        htmlTestTemplate = strrep(htmlTestTemplate, "        // TODO: Load test data", dataLoadCode);
+    end
+    
+    % Read and process MATLAB test template
+    matlabTestTemplate = fileread(fullfile(templateDir, "test.m"));
+    matlabTestTemplate = strrep(matlabTestTemplate, "{{COMPONENT_NAME}}", name);
+    matlabTestTemplate = strrep(matlabTestTemplate, "{{COMPONENT_TYPE}}", componentTypeStr);
+    matlabTestTemplate = strrep(matlabTestTemplate, "{{COMPONENT_TYPE_UPPER}}", componentTypeUpper);
+    matlabTestTemplate = strrep(matlabTestTemplate, "{{LIBRARY_DESCRIPTION}}", libraryDescription);
+    
+    % Add MATLAB data loading code if test data path is provided
+    if ~isempty(testDataPath)
+        [~, ~, ext] = fileparts(testDataPath);
+        if strcmpi(ext, '.csv')
+            matlabDataLoadCode = [ ...
+                "dataPath = fullfile(fileparts(mfilename('fullpath')), '" + testDataPath + "');" + newline + ...
+                "testData = readtable(dataPath);" ...
+            ];
+        elseif strcmpi(ext, '.tsv')
+            matlabDataLoadCode = [ ...
+                "dataPath = fullfile(fileparts(mfilename('fullpath')), '" + testDataPath + "');" + newline + ...
+                "testData = readtable(dataPath, 'FileType', 'text', 'Delimiter', '\t');" ...
+            ];
+        else
+            matlabDataLoadCode = [ ...
+                "% TODO: Load test data from: " + testDataPath ...
+            ];
+        end
+        matlabTestTemplate = strrep(matlabTestTemplate, "% TODO: Load or generate test data", matlabDataLoadCode);
+    end
+    
+    % Write test files
+    htmlTestPath = fullfile(htmlTestDir, "test_" + name + ".html");
+    matlabTestPath = fullfile(matlabTestDir, "test_" + name + ".m");
+    writeFile(htmlTestPath, htmlTestTemplate);
+    writeFile(matlabTestPath, matlabTestTemplate);
+    
+    disp("Test files generated:");
+    disp("  " + htmlTestPath);
+    disp("  " + matlabTestPath);
+end
