@@ -80,6 +80,14 @@ classdef d3Brush < matlab.ui.componentcontainer.ComponentContainer
     
     methods (Access = protected)
         function setup(comp)
+            % If using default size, fill the parent container instead
+            if comp.Position(3) == 100 && comp.Position(4) == 100
+                % Get parent container size
+                parentPos = comp.Parent.Position;
+                % Fill parent with small margins
+                comp.Position = [10 10 parentPos(3)-20 parentPos(4)-20];
+            end
+            
             % Create the HTML component that fills the container
             comp.HTMLComponent = uihtml(comp);
             
@@ -87,8 +95,8 @@ classdef d3Brush < matlab.ui.componentcontainer.ComponentContainer
             % Position relative to container: [x y width height]
             comp.HTMLComponent.Position = [1 1 comp.Position(3:4)];
             
-            % Use relative path for HTMLSource (required for toolbox packaging)
-            comp.HTMLComponent.HTMLSource = 'd3Brush.html';
+            % Use static method to resolve path to web/index.html
+            comp.HTMLComponent.HTMLSource = d3Brush.resolveHTMLSource();
             
             % Set up event listener for HTML events from JavaScript
             comp.HTMLComponent.HTMLEventReceivedFcn = @(src, event) comp.handleBrushEvent(event);
@@ -233,6 +241,16 @@ classdef d3Brush < matlab.ui.componentcontainer.ComponentContainer
                 % Silently catch timer cleanup errors during deletion
                 % Timer may already be deleted in some edge cases
             end
+        end
+    end
+    
+    methods (Access = private, Static)
+        function htmlPath = resolveHTMLSource()
+            % Resolve the absolute path to web/index.html
+            % This works in both development and packaged toolbox scenarios
+            classFile = mfilename('fullpath');
+            classDir = fileparts(classFile);
+            htmlPath = fullfile(classDir, 'web', 'index.html');
         end
     end
 end

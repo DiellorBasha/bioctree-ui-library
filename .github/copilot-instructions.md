@@ -6,37 +6,51 @@ Library of custom UI components built with D3.js for integration with MATLAB. Co
 ## Architecture
 
 ### Component Structure
-Each component follows a standardized file naming pattern in `components/@ComponentName/`:
-- `ComponentName.m` - MATLAB class extending `matlab.ui.componentcontainer.ComponentContainer`
-- `ComponentName.html` - HTML container template (shadow DOM equivalent)
-- `ComponentName.css` - Component-specific styles
-- `ComponentName.js` - Controller script (lifecycle, MATLAB communication, event dispatching)
-- `ComponentName.render.js` - Pure rendering logic (D3 visualization, no lifecycle)
-- `ComponentName.utils.js` - (Optional) Reusable utility functions
-- `vendor/` - Component-specific vendored dependencies
+Each component follows a standardized structure in `components/@ComponentName/`:
+
+```
+@ComponentName/
+├── ComponentName.m         # MATLAB class (authoritative API)
+├── README.md              # Component documentation
+├── web/                   # Web assets (entry point for uihtml)
+│   ├── index.html         # HTML entry point
+│   ├── main.js            # Bootstrap/lifecycle controller
+│   ├── render.js          # Visualization rendering logic
+│   ├── styles.css         # Component-specific styles
+│   └── vendor/            # Vendored dependencies
+│       ├── d3.v5.9.2.min.js
+│       └── tailwind.min.css
+└── assets/                # Optional (icons, SVGs, resources)
+```
 
 **Example:** `@d3Brush/` contains:
 ```
 @d3Brush/
-├── d3Brush.m              # MATLAB class
-├── d3Brush.html           # Template
-├── d3Brush.css            # Styles
-├── d3Brush.js             # Controller (setup, lifecycle)
-├── d3Brush.render.js      # D3 rendering logic
-└── vendor/
-    └── d3.v5.9.2.min.js   # Vendored dependency
+├── d3Brush.m              # MATLAB ComponentContainer class
+├── README.md              # Usage documentation
+└── web/
+    ├── index.html         # Entry point (loaded by uihtml)
+    ├── main.js            # Component bootstrap & lifecycle
+    ├── render.js          # D3 brush rendering logic
+    ├── styles.css         # Brush-specific styles
+    └── vendor/
+        └── d3.v5.9.2.min.js
 ```
 
 **File Responsibilities:**
-- **Controller (`ComponentName.js`)**: Manages `setup()` function, receives MATLAB Data updates, dispatches CustomEvents to MATLAB, handles lifecycle
-- **Renderer (`ComponentName.render.js`)**: Pure D3 visualization logic - creates SVG, draws elements, handles D3 events (start, brush, end)
-- **Utilities (`ComponentName.utils.js`)**: Optional helpers like `snappedRange()`, `pixelToValue()`, `clamp()`, tick formatters
+- **`ComponentName.m`**: MATLAB class extending `ComponentContainer`, defines properties, events, and MATLAB-side API
+- **`web/index.html`**: HTML entry point loaded by `uihtml()`, includes script/style references
+- **`web/main.js`**: Bootstrap logic, `setup()` function, MATLAB communication, lifecycle management
+- **`web/render.js`**: Pure visualization logic (D3, Canvas, WebGL), no lifecycle code
+- **`web/styles.css`**: Component-specific CSS (Tailwind build or custom styles)
+- **`web/vendor/`**: Encapsulated dependencies with explicit versions
 
-**Why This Pattern?**
-- Clean separation of concerns (lifecycle vs rendering)
-- Easier debugging (isolate rendering issues from communication issues)
-- Path resolution is straightforward: `fullfile(folder, 'ComponentName.html')`
-- Follows web component best practices
+**Why This Structure?**
+- **Standard entry points** (`index.html`, `main.js`) follow web conventions
+- **Clean separation**: Bootstrap (main.js) vs rendering (render.js) vs styles (styles.css)
+- **Encapsulated dependencies**: Each component bundles its own versions in `web/vendor/`
+- **Path resolution**: Relative paths from `web/index.html` work naturally
+- **Scalability**: Easy to add shaders, workers, or assets without cluttering root
 
 ### MATLAB-JavaScript Communication Pattern
 Components use `matlab.ui.control.HTML` for bidirectional communication:
@@ -70,10 +84,21 @@ All components must implement:
 - `delete(comp)` - Clean up timers and resources
 
 ### Critical Implementation Rules
-1. **HTMLSource must use relative paths** - Never use `fullfile(fileparts(mfilename('fullpath')))` as this breaks toolbox packaging and App Designer
+1. **HTMLSource must use static method for path resolution**
    ```matlab
-   comp.HTMLComponent.HTMLSource = 'ComponentName.html';  % Correct - matches class name
+   % In setup() method:
+   comp.HTMLComponent.HTMLSource = ComponentName.resolveHTMLSource();
+   
+   % Add static method for path resolution:
+   methods (Access = private, Static)
+       function htmlPath = resolveHTMLSource()
+           classFile = mfilename('fullpath');
+           classDir = fileparts(classFile);
+           htmlPath = fullfile(classDir, 'web', 'index.html');
+       end
+   end
    ```
+   This approach works in both development and packaged toolbox scenarios.
 
 2. **HTML component Position must be explicitly set** - Set position relative to ComponentContainer
    ```matlab
@@ -118,7 +143,7 @@ All components must implement:
    - Component-specific events (e.g., `BrushStarted`, `BrushEnded`)
 
 ### JavaScript Setup Pattern
-Controller files (`ComponentName.js`) must define `setup(htmlComponent)` function called by MATLAB:
+Controller files (`web/main.js`) must define `setup(htmlComponent)` function called by MATLAB:
 ```javascript
 function setup(htmlComponent) {
     var data = htmlComponent.Data;
@@ -130,7 +155,7 @@ function setup(htmlComponent) {
 }
 ```
 
-Rendering logic (`ComponentName.render.js`) contains pure visualization functions:
+Rendering logic (`web/render.js`) contains pure visualization functions:
 ```javascript
 function renderComponent(data, htmlComponent) {
     // Pure D3 rendering - no lifecycle management
@@ -150,16 +175,18 @@ function renderComponent(data, htmlComponent) {
 - `manifest.json` - Component dependency manifest and version tracking
 
 ### Component Vendor Dependencies
-Each component maintains its own `vendor/` directory for encapsulated dependencies:
+Each component maintains its own `web/vendor/` directory for encapsulated dependencies:
 ```
 components/@ComponentName/
 ├── ComponentName.m
-├── component_name.html
-├── component_name.css
-├── component_name_rendering.js
-├── vendor/
-│   └── d3.v5.9.2.min.js    # Component-specific D3 version
-└── README.md                # Must document dependency versions
+├── README.md                # Must document dependency versions
+└── web/
+    ├── index.html
+    ├── main.js
+    ├── render.js
+    ├── styles.css
+    └── vendor/
+        └── d3.v5.9.2.min.js    # Component-specific D3 version
 ```
 
 **Why Component-Level Vendoring?**
@@ -169,19 +196,19 @@ components/@ComponentName/
 - Follows web component best practices
 
 ### Relative Paths in HTML
-HTML files reference D3 and assets with relative paths from component directory:
+HTML files reference scripts and styles with relative paths from `web/` directory:
 ```html
 <script src="vendor/d3.v5.9.2.min.js"></script>
-<link rel="stylesheet" href="ComponentName.css">
-<script src="ComponentName.render.js"></script>
-<script src="ComponentName.js"></script>
+<link rel="stylesheet" href="styles.css">
+<script src="render.js"></script>
+<script src="main.js"></script>
 ```
 
 ### Dependency Versioning
 **Critical:** Always use explicit version numbers in filenames and paths.
 
 **D3.js Version Management:**
-- Each component bundles its own D3 version in `vendor/` directory
+- Each component bundles its own D3 version in `web/vendor/` directory
 - Filename MUST include version: `d3.v5.9.2.min.js` (never `d3.min.js`)
 - Component README MUST document exact D3 version and event model
 - Update `manifest.json` when adding or upgrading dependencies
@@ -232,7 +259,7 @@ Note: Follow MATLAB's standard event pattern where `ValueChanging` fires during 
 
 ### Component Versioning
 - Each component tracks its own version in the MATLAB class file header
-- Each component bundles its specific D3 version in `vendor/` directory
+- Each component bundles its specific D3 version in `web/vendor/` directory
 - Root `manifest.json` tracks all component dependencies and versions
 - When updating D3.js, test all components for breaking changes
 - Document version compatibility in component README.md
@@ -243,15 +270,16 @@ Note: Follow MATLAB's standard event pattern where `ValueChanging` fires during 
 2. Create MATLAB class extending `ComponentContainer`:
    - Define public properties
    - Implement `setup()` and `update()` methods
-   - Create `HTMLComponent` pointing to HTML file
-3. Create HTML file (template only, no inline scripts)
-4. Create CSS file for component-specific styles
-5. Create controller JS file (`ComponentName.js`) with `setup()` function
-6. Create rendering JS file (`ComponentName.render.js`) with visualization logic
-7. **Create `vendor/` directory and copy required D3 version**
-8. **Create `README.md` documenting exact dependency versions**
-9. Ensure HTML references all files with correct relative paths
-10. **Update root `manifest.json` with new component entry**
+   - Create `HTMLComponent` pointing to `web/index.html`
+3. Create `web/` directory structure
+4. Create `web/index.html` (template only, no inline scripts)
+5. Create `web/styles.css` for component-specific styles
+6. Create `web/main.js` with `setup()` function
+7. Create `web/render.js` with visualization logic
+8. **Create `web/vendor/` directory and copy required D3 version**
+9. **Create `README.md` documenting exact dependency versions**
+10. Ensure `index.html` references all files with correct relative paths
+11. **Update root `manifest.json` with new component entry**
 
 ## Testing Workflow
 
