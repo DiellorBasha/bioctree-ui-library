@@ -32,7 +32,7 @@ createComponentTemplate("InteractiveBrush", ...
 
 ### Component/View Structure
 ```
-views/@DensityChart/           (or components/@ComponentName/)
+views/@DensityChart/           (or controllers/@ComponentName/)
 ├── DensityChart.m            # MATLAB class
 ├── README.md                 # Documentation
 └── web/

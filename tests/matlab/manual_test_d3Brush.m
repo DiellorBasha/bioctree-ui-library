@@ -5,7 +5,7 @@
 % Usage: Open this file and run sections using Ctrl+Enter (or Cmd+Enter on Mac)
 
 %% Setup - Add component to path
-addpath(genpath(fullfile(fileparts(fileparts(pwd)), 'components')));
+addpath(genpath(fullfile(fileparts(fileparts(pwd)), 'controllers')));
 
 %% Test 1: Basic Component Creation
 % Create a simple brush with default settings

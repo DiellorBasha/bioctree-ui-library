@@ -278,4 +278,4 @@ The `Bandwidth` parameter controls the KDE smoothing, and `Thresholds` controls 
 
 - [Views Documentation](../README.md)
 - [Observable Plot Density](https://observablehq.com/@observablehq/plot-one-dimensional-density)
-- Component: [d3Brush](../../components/@d3Brush/README.md) - Interactive selection component
+- Component: [d3Brush](../../controllers/@d3Brush/README.md) - Interactive selection component

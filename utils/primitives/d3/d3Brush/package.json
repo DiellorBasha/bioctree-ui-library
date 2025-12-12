@@ -1,0 +1,14 @@
+{
+  "name": "@d3/brush-snapping",
+  "main": "9ffe8e601bb00e46@111.js",
+  "version": "111.0.0",
+  "homepage": "https://observablehq.com/@d3/brush-snapping",
+  "author": {
+    "name": "D3",
+    "url": "https://observablehq.com/@d3"
+  },
+  "type": "module",
+  "peerDependencies": {
+    "@observablehq/runtime": "4 - 5"
+  }
+}

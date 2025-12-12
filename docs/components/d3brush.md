@@ -346,7 +346,7 @@ See [Testing Guide](../development/testing.md) for more details.
 
 **Solutions:**
 1. Verify component is on MATLAB path: `which d3Brush`
-2. Check HTML file exists: `dir('components/@d3Brush/d3Brush.html')`
+2. Check HTML file exists: `dir('controllers/@d3Brush/d3Brush.html')`
 3. Ensure figure is visible: `fig.Visible = 'on'`
 
 ### Events Not Firing
@@ -386,4 +386,4 @@ More examples available in:
 ## Support
 
 - [GitHub Issues](https://github.com/DiellorBasha/bioctree-ui-library/issues)
-- [Component README](https://github.com/DiellorBasha/bioctree-ui-library/tree/main/components/@d3Brush)
+- [Component README](https://github.com/DiellorBasha/bioctree-ui-library/tree/main/controllers/@d3Brush)

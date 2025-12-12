@@ -140,7 +140,7 @@ When adding new features to d3Brush:
 
 ## Related Documentation
 
-- Component implementation: `components/@d3Brush/d3Brush.m`
+- Component implementation: `controllers/@d3Brush/d3Brush.m`
 - HTML/JavaScript tests: `tests/html/test_d3_brush.html`
-- Component README: `components/@d3Brush/README.md`
+- Component README: `controllers/@d3Brush/README.md`
 - Development guidelines: `.github/copilot-instructions.md`

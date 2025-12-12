@@ -4,7 +4,7 @@
 Library of custom UI components built with D3.js and Observable Plot for integration with MATLAB. Components are MATLAB classes that embed HTML/CSS/JavaScript to create interactive visualizations using the `matlab.ui.componentcontainer.ComponentContainer` pattern.
 
 The library provides two types of component architectures:
-- **Components** (`components/@ComponentName/`) - Interactive components with bidirectional data flow, events, and callbacks
+- **Controllers** (`controllers/@ComponentName/`) - Interactive components with bidirectional data flow, events, and callbacks
 - **Views** (`views/@ViewName/`) - Read-only data visualization components with one-way data flow
 
 ## Quick Start: Creating New Components
@@ -72,7 +72,7 @@ Test templates are automatically generated when the `testData` parameter is prov
 
 **HTML Test Template (`tests/html/test_ComponentName.html`):**
 - Loads libraries from `../../lib/observable-plot/` or `../../lib/d3/`
-- Loads component files from `../../views/@ComponentName/web/` or `../../components/@ComponentName/web/`
+- Loads component files from `../../views/@ComponentName/web/` or `../../controllers/@ComponentName/web/`
 - Creates multiple test containers with different configurations
 - Includes automatic data loading (d3.csv, d3.tsv, d3.json based on file extension)
 - Mock htmlComponent for standalone testing
@@ -87,7 +87,7 @@ Test templates are automatically generated when the `testData` parameter is prov
 ## Architecture
 
 ### Component Structure
-Each component follows a standardized structure in `components/@ComponentName/`:
+Each controller follows a standardized structure in `controllers/@ComponentName/`:
 
 ```
 @ComponentName/
@@ -364,7 +364,7 @@ function setup(htmlComponent) {
 ### Component Vendor Dependencies
 Each component maintains its own `web/vendor/` directory for encapsulated dependencies:
 ```
-components/@ComponentName/
+controllers/@ComponentName/
 ├── ComponentName.m
 ├── README.md                # Must document dependency versions
 └── web/
@@ -490,7 +490,7 @@ createComponentTemplate("DensityPlot", "library", "observable-plot", "type", "vi
 createComponentTemplate("RangeSelector", "library", "d3", "type", "component")
 
 % This creates:
-% components/@RangeSelector/
+% controllers/@RangeSelector/
 %   ├── RangeSelector.m (COMPONENT pattern with events)
 %   ├── README.md
 %   └── web/
@@ -519,7 +519,7 @@ createComponentTemplate("RangeSelector", "library", "d3", "type", "component")
 
 If templates don't fit your needs, follow the standard structure:
 
-1. Create `components/@ComponentName/` or `views/@ViewName/` folder
+1. Create `controllers/@ComponentName/` or `views/@ViewName/` folder
 2. Create MATLAB class extending `ComponentContainer`:
    - Define public properties
    - Implement `setup()` and `update()` methods

@@ -140,7 +140,7 @@ addpath(genpath('path/to/bioctree-ui-library/components'));
 
 **Solution:**
 - Ensure the entire component folder structure is intact
-- Verify `d3Brush.html` exists in `components/@d3Brush/`
+- Verify `d3Brush.html` exists in `controllers/@d3Brush/`
 - Check file permissions
 
 ### Class Definition Issues

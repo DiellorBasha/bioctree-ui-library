@@ -1,0 +1,14 @@
+{
+  "name": "@observablehq/plot-one-dimensional-density",
+  "main": "92b0d6fca5c65c19@17.js",
+  "version": "17.0.0",
+  "homepage": "https://observablehq.com/@observablehq/plot-one-dimensional-density",
+  "author": {
+    "name": "Observable",
+    "url": "https://observablehq.com/@observablehq"
+  },
+  "type": "module",
+  "peerDependencies": {
+    "@observablehq/runtime": "4 - 5"
+  }
+}

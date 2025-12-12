@@ -4,10 +4,10 @@
 
 clear; close all;
 
-% Add components to path
-componentsPath = fullfile(fileparts(fileparts(mfilename('fullpath'))), '..', 'components');
-addpath(genpath(componentsPath));
-fprintf('Added to path: %s\n', componentsPath);
+% Add controllers to path
+controllersPath = fullfile(fileparts(fileparts(mfilename('fullpath'))), '..', 'controllers');
+addpath(genpath(controllersPath));
+fprintf('Added to path: %s\n', controllersPath);
 
 %% Test 1: Basic Component
 fprintf('Test 1: Creating basic {{COMPONENT_NAME}} component...\n');

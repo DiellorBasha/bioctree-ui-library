@@ -4,7 +4,7 @@
 clear; clc;
 
 % Add component to path
-addpath(genpath('components'));
+addpath(genpath('controllers'));
 
 % Create figure
 fig = uifigure('Position', [100 100 700 500], 'Name', 'd3Brush Interaction Test');

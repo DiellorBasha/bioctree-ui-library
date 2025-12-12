@@ -3,7 +3,7 @@
   "name": "bioctree-ui-library",
   "version": "1.0.0",
   "description": "Library of custom UI components built with D3.js for integration with MATLAB",
-  "components": {
+  "controllers": {
     "d3Brush": {
       "version": "1.0.0",
       "description": "Interactive brush component with snapping for range selection",
@@ -11,12 +11,12 @@
       "d3_event_model": "v5",
       "matlab_version": "R2020b+",
       "files": {
-        "matlab_class": "components/@d3Brush/d3Brush.m",
-        "html": "components/@d3Brush/d3Brush.html",
-        "css": "components/@d3Brush/d3Brush.css",
-        "controller": "components/@d3Brush/d3Brush.js",
-        "renderer": "components/@d3Brush/d3Brush.render.js",
-        "vendor": "components/@d3Brush/vendor/d3.v5.9.2.min.js"
+        "matlab_class": "controllers/@d3Brush/d3Brush.m",
+        "html": "controllers/@d3Brush/d3Brush.html",
+        "css": "controllers/@d3Brush/d3Brush.css",
+        "controller": "controllers/@d3Brush/d3Brush.js",
+        "renderer": "controllers/@d3Brush/d3Brush.render.js",
+        "vendor": "controllers/@d3Brush/vendor/d3.v5.9.2.min.js"
       },
       "compatibility_notes": "Uses D3 v5 event model (d3.event global). Do NOT upgrade to D3 v6+ without updating event signatures in brush handlers."
     }
@@ -46,6 +46,6 @@
   "documentation": {
     "main": "README.md",
     "copilot_instructions": ".github/copilot-instructions.md",
-    "component_readmes": "components/@ComponentName/README.md"
+    "component_readmes": "controllers/@ComponentName/README.md"
   }
 }

@@ -3,7 +3,7 @@ classdef ComponentLoader
         function path = resolve(componentName, fileName)
             % Returns absolute path to asset inside @component folder
             base = fileparts(mfilename('fullpath'));
-            compDir = fullfile(base, "..", "components", "@" + componentName);
+            compDir = fullfile(base, "..", "controllers", "@" + componentName);
 
             path = fullfile(compDir, fileName);
 

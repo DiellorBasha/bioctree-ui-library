@@ -37,7 +37,7 @@ isView = strcmpi(componentType, 'view');
 if isView
     baseDir = fullfile(pwd, "views");
 else
-    baseDir = fullfile(pwd, "components");
+    baseDir = fullfile(pwd, "controllers");
 end
 
 base = fullfile(baseDir, "@" + name);
@@ -82,7 +82,7 @@ if isView
 else
     typeStr = "component";
     dataFlowStr = "bidirectional with events";
-    dirStr = "components";
+    dirStr = "controllers";
 end
 
 disp("Template created:");
@@ -613,7 +613,7 @@ function createD3Component(name, base, webDir, vendorDir, isView)
         copyfile(fullfile(libDir, d3File), fullfile(vendorDir, d3File));
     else
         % Fallback: copy from d3Brush if lib/d3 doesn't exist
-        d3BrushVendor = fullfile(pwd, "components", "@d3Brush", "web", "vendor", d3File);
+        d3BrushVendor = fullfile(pwd, "controllers", "@d3Brush", "web", "vendor", d3File);
         if isfile(d3BrushVendor)
             copyfile(d3BrushVendor, fullfile(vendorDir, d3File));
         else
@@ -674,9 +674,9 @@ function generateTestFiles(name, libraryType, isView, testDataPath)
         componentTypeStr = "view";
         componentTypeUpper = "VIEW";
     else
-        componentPath = "components/@" + name;
-        componentTypeStr = "component";
-        componentTypeUpper = "COMPONENT";
+        componentPath = "controllers/@" + name;
+        componentTypeStr = "controller";
+        componentTypeUpper = "CONTROLLER";
     end
     
     % Create test directories if they don't exist

@@ -83,16 +83,16 @@ edit('manual_test_d3Brush.m')
 <html>
 <head>
     <title>Test Component</title>
-    <link rel="stylesheet" href="../../components/@ComponentName/web/styles.css">
-    <script src="test-utils.js"></script>
+    <link rel=\"stylesheet\" href=\"../../controllers/@ComponentName/web/styles.css\">
+    <script src=\"test-utils.js\"></script>
 </head>
 <body>
     <h1>Component Tests</h1>
-    <div class="component-container"></div>
+    <div class=\"component-container\"></div>
     
-    <script src="../../components/@ComponentName/web/vendor/d3.v5.9.2.min.js"></script>
-    <script src="../../components/@ComponentName/web/render.js"></script>
-    <script src="../../components/@ComponentName/web/main.js"></script>
+    <script src=\"../../controllers/@ComponentName/web/vendor/d3.v5.9.2.min.js\"></script>
+    <script src=\"../../controllers/@ComponentName/web/render.js\"></script>
+    <script src=\"../../controllers/@ComponentName/web/main.js\"></script>
     
     <script>
         // Create mock htmlComponent

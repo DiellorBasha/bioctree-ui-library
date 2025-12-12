@@ -10,7 +10,7 @@ end
 
 function setupOnce(testCase)
     % Add component to path if needed
-    componentPath = fullfile(fileparts(fileparts(fileparts(mfilename('fullpath')))), 'components');
+    componentPath = fullfile(fileparts(fileparts(fileparts(mfilename('fullpath')))), 'controllers');
     if ~contains(path, componentPath)
         addpath(genpath(componentPath));
         testCase.TestData.pathAdded = true;
@@ -22,7 +22,7 @@ end
 function teardownOnce(testCase)
     % Remove path if we added it
     if testCase.TestData.pathAdded
-        componentPath = fullfile(fileparts(fileparts(fileparts(mfilename('fullpath')))), 'components');
+        componentPath = fullfile(fileparts(fileparts(fileparts(mfilename('fullpath')))), 'controllers');
         rmpath(genpath(componentPath));
     end
 end
