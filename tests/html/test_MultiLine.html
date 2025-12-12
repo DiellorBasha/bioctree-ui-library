@@ -95,68 +95,69 @@
     <script>
         console.log('[Test Suite] Starting MultiLine tests...');
         
+        // Mock data for testing (will be populated by d3.csv)
+        var testData = [];
+        
+        // Define test function
+        function runTests() {
+            console.log('[Test Suite] Running tests with', testData.length, 'data points');
+            
+            // Test 1: Basic visualization
+            console.log('[Test 1] Rendering basic visualization...');
+            var container1 = document.getElementById('test1');
+            var originalQuery = document.querySelector;
+            document.querySelector = function(selector) {
+                if (selector === '.multiline-container') return container1;
+                return originalQuery.call(document, selector);
+            };
+            
+            var viewData1 = {
+                data: testData
+            };
+            renderMultiLine(viewData1);
+            document.querySelector = originalQuery;
+            
+            // Test 2: Custom configuration
+            console.log('[Test 2] Rendering with custom configuration...');
+            var container2 = document.getElementById('test2');
+            document.querySelector = function(selector) {
+                if (selector === '.multiline-container') return container2;
+                return originalQuery.call(document, selector);
+            };
+            
+            var viewData2 = {
+                data: testData
+            };
+            renderMultiLine(viewData2);
+            document.querySelector = originalQuery;
+            
+            // Test 3: Empty data
+            console.log('[Test 3] Testing empty data handling...');
+            var container3 = document.getElementById('test3');
+            document.querySelector = function(selector) {
+                if (selector === '.multiline-container') return container3;
+                return originalQuery.call(document, selector);
+            };
+            
+            var viewData3 = {
+                data: []
+            };
+            renderMultiLine(viewData3);
+            document.querySelector = originalQuery;
+            
+            console.log('[Test Suite] All tests complete!');
+        }
+        
+        // Load test data and run tests
         d3.csv('../data/bls-metro-unemployment.csv', d3.autoType).then(function(data) {
+            console.log('[Data Loader] Loaded', data.length, 'rows from CSV');
             testData = data;
             runTests();
+        }).catch(function(error) {
+            console.error('[Data Loader] Error loading CSV:', error);
+            console.warn('[Data Loader] Running tests with empty data instead');
+            runTests();
         });
-        // Example for CSV:
-        // d3.csv('../data/yourdata.csv', d3.autoType).then(function(data) { ... });
-        //
-        // Example for TSV:
-        // d3.tsv('../data/yourdata.tsv', d3.autoType).then(function(data) { ... });
-        //
-        // Example for JSON:
-        // d3.json('../data/yourdata.json').then(function(data) { ... });
-        
-        // Mock data for testing
-        var testData = []; // TODO: Add test data
-        
-        // Test 1: Basic visualization
-        console.log('[Test 1] Rendering basic visualization...');
-        var container1 = document.getElementById('test1');
-        var originalQuery = document.querySelector;
-        document.querySelector = function(selector) {
-            if (selector === '.multiline-container') return container1;
-            return originalQuery.call(document, selector);
-        };
-        
-        var viewData1 = {
-            data: testData
-            // TODO: Add parameters
-        };
-        renderMultiLine(viewData1);
-        document.querySelector = originalQuery;
-        
-        // Test 2: Custom configuration
-        console.log('[Test 2] Rendering with custom configuration...');
-        var container2 = document.getElementById('test2');
-        document.querySelector = function(selector) {
-            if (selector === '.multiline-container') return container2;
-            return originalQuery.call(document, selector);
-        };
-        
-        var viewData2 = {
-            data: testData
-            // TODO: Add custom parameters
-        };
-        renderMultiLine(viewData2);
-        document.querySelector = originalQuery;
-        
-        // Test 3: Empty data
-        console.log('[Test 3] Testing empty data handling...');
-        var container3 = document.getElementById('test3');
-        document.querySelector = function(selector) {
-            if (selector === '.multiline-container') return container3;
-            return originalQuery.call(document, selector);
-        };
-        
-        var viewData3 = {
-            data: []
-        };
-        renderMultiLine(viewData3);
-        document.querySelector = originalQuery;
-        
-        console.log('[Test Suite] All tests complete!');
     </script>
 </body>
 </html>
