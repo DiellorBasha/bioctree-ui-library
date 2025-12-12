@@ -22,6 +22,9 @@ createComponentTemplate("MyBrush", "library", "d3", "type", "component")
 
 % Create a custom component
 createComponentTemplate("MyViz", "library", "custom", "type", "component")
+
+% Create with automatic test file generation
+createComponentTemplate("DensityChart", "library", "observable-plot", "type", "view", "testData", "../data/faithful.tsv")
 ```
 
 **Template Arguments:**
@@ -32,6 +35,10 @@ createComponentTemplate("MyViz", "library", "custom", "type", "component")
 - `type` - Component category:
   - `'view'` - One-way data flow, no events, saved in `views/`
   - `'component'` - Bidirectional, events/callbacks, saved in `components/`
+- `testData` - (Optional) Path to test data file (e.g., `'../data/faithful.tsv'`)
+  - Generates test files in `tests/html/` and `tests/matlab/`
+  - Automatically adds data loading code for CSV, TSV, and JSON formats
+  - Creates multiple test cases with different configurations
 
 **What Templates Provide:**
 - ✅ Correct directory structure (`web/`, `web/vendor/`)
@@ -41,18 +48,41 @@ createComponentTemplate("MyViz", "library", "custom", "type", "component")
 - ✅ README with library version documentation
 - ✅ Retry logic for container dimensions
 - ✅ Event patterns (D3 v5 or Observable Plot)
+- ✅ Test files (HTML and MATLAB) when testData is specified
 
 **After Template Creation:**
 1. Navigate to the created directory
 2. Implement visualization logic in `web/render.js`
 3. Add properties to `ComponentName.m`
 4. Update README with usage examples
-5. Create test files in `tests/matlab/` and `tests/html/`
+5. If testData was provided, customize test files in `tests/matlab/` and `tests/html/`
+6. If testData was not provided, manually create test files using the template patterns
 
 ### Template Locations
 - `utils/templates/observable-plot/` - Observable Plot view templates
+  - `index.html`, `main.js`, `render.js`, `styles.css` - Component files
+  - `test.html`, `test.m` - Test file templates
 - `utils/templates/d3/` - D3.js component templates
+  - `index.html`, `main.js`, `render.js`, `styles.css` - Component files
+  - `test.html`, `test.m` - Test file templates
 - `utils/createComponentTemplate.m` - Template generation function
+
+### Test File Templates
+Test templates are automatically generated when the `testData` parameter is provided:
+
+**HTML Test Template (`tests/html/test_ComponentName.html`):**
+- Loads libraries from `../../lib/observable-plot/` or `../../lib/d3/`
+- Loads component files from `../../views/@ComponentName/web/` or `../../components/@ComponentName/web/`
+- Creates multiple test containers with different configurations
+- Includes automatic data loading (d3.csv, d3.tsv, d3.json based on file extension)
+- Mock htmlComponent for standalone testing
+
+**MATLAB Test Template (`tests/matlab/test_ComponentName.m`):**
+- Path setup using `fileparts(mfilename('fullpath'))`
+- Automatic data loading (readtable with appropriate delimiters)
+- Multiple test sections: Basic, styling, dynamic updates, empty data
+- Uses uifigure with positioned views/components
+- Comprehensive fprintf output for test progress
 
 ## Architecture
 
