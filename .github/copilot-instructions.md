@@ -1,11 +1,58 @@
 # Copilot Instructions for bioctree-ui-library
 
 ## Project Overview
-Library of custom UI components built with D3.js for integration with MATLAB. Components are MATLAB classes that embed HTML/CSS/JavaScript to create interactive visualizations using the `matlab.ui.componentcontainer.ComponentContainer` pattern.
+Library of custom UI components built with D3.js and Observable Plot for integration with MATLAB. Components are MATLAB classes that embed HTML/CSS/JavaScript to create interactive visualizations using the `matlab.ui.componentcontainer.ComponentContainer` pattern.
 
 The library provides two types of component architectures:
 - **Components** (`components/@ComponentName/`) - Interactive components with bidirectional data flow, events, and callbacks
 - **Views** (`views/@ViewName/`) - Read-only data visualization components with one-way data flow
+
+## Quick Start: Creating New Components
+
+### Using Templates (Recommended)
+
+The library includes template scaffolding for rapid component creation:
+
+```matlab
+% Create an Observable Plot view (one-way data flow)
+createComponentTemplate("MyChart", "library", "observable-plot", "type", "view")
+
+% Create a D3 interactive component (bidirectional with events)
+createComponentTemplate("MyBrush", "library", "d3", "type", "component")
+
+% Create a custom component
+createComponentTemplate("MyViz", "library", "custom", "type", "component")
+```
+
+**Template Arguments:**
+- `library` - JavaScript library to use:
+  - `'observable-plot'` - Observable Plot v0.6.17 (UMD) + D3.js
+  - `'d3'` - D3.js v5.9.2 only
+  - `'custom'` - Basic structure, bring your own libraries
+- `type` - Component category:
+  - `'view'` - One-way data flow, no events, saved in `views/`
+  - `'component'` - Bidirectional, events/callbacks, saved in `components/`
+
+**What Templates Provide:**
+- ✅ Correct directory structure (`web/`, `web/vendor/`)
+- ✅ MATLAB class with proper patterns (VIEW or COMPONENT)
+- ✅ HTML/JS/CSS files with placeholders
+- ✅ Library files automatically copied to `web/vendor/`
+- ✅ README with library version documentation
+- ✅ Retry logic for container dimensions
+- ✅ Event patterns (D3 v5 or Observable Plot)
+
+**After Template Creation:**
+1. Navigate to the created directory
+2. Implement visualization logic in `web/render.js`
+3. Add properties to `ComponentName.m`
+4. Update README with usage examples
+5. Create test files in `tests/matlab/` and `tests/html/`
+
+### Template Locations
+- `utils/templates/observable-plot/` - Observable Plot view templates
+- `utils/templates/d3/` - D3.js component templates
+- `utils/createComponentTemplate.m` - Template generation function
 
 ## Architecture
 
@@ -271,13 +318,18 @@ function setup(htmlComponent) {
 ## File Organization
 
 ### Asset Structure
-- `lib/d3/` - Shared D3.js library versions (explicitly versioned)
+- `lib/d3/` - Shared D3.js library versions (explicitly versioned, v5.9.2)
+- `lib/observable-plot/` - Observable Plot v0.6.17 UMD build + D3.js dependency
 - `lib/tailwind/` - Tailwind CSS (if needed)
 - `lib/assets/` - Shared resources (currently empty)
 - `assets/icons/` - SVG/image assets
 - `assets/shared.css` - Global styles for all components
 - `assets/shared.js` - Shared JavaScript utilities for all components
 - `manifest.json` - Component dependency manifest and version tracking
+- `utils/templates/` - Component templates for scaffolding
+  - `utils/templates/observable-plot/` - Observable Plot view templates
+  - `utils/templates/d3/` - D3 component templates
+- `utils/createComponentTemplate.m` - Template generation function
 
 ### Component Vendor Dependencies
 Each component maintains its own `web/vendor/` directory for encapsulated dependencies:
@@ -334,9 +386,10 @@ HTML files reference scripts and styles with relative paths from `web/` director
 **Observable Plot for Views:**
 - Views may use Observable Plot instead of D3.js for specialized visualizations
 - Observable Plot provides high-level declarative API via `Plot.plot()`
-- Example: DensityStrip uses `Plot.densityX()` for density bands
-- Version: `plot.v0.6.14.umd.min.js` bundled in view's `web/vendor/`
+- Example: DensityStrip uses `Plot.density()` for density bands
+- Version: Observable Plot v0.6.17 UMD build (plot.min.js) bundled in view's `web/vendor/`
 - Observable Plot internally uses D3 but provides simpler API
+- Use `createComponentTemplate("MyView", "library", "observable-plot", "type", "view")` to scaffold
 
 ## Development Conventions
 
@@ -378,7 +431,65 @@ Note: Follow MATLAB's standard event pattern where `ValueChanging` fires during 
 
 ## Adding New Components
 
-1. Create `components/@ComponentName/` folder
+### Method 1: Using Templates (Recommended)
+
+Use `createComponentTemplate()` to quickly scaffold new components:
+
+**Observable Plot View Example:**
+```matlab
+% Create a view for density plots
+createComponentTemplate("DensityPlot", "library", "observable-plot", "type", "view")
+
+% This creates:
+% views/@DensityPlot/
+%   ├── DensityPlot.m (VIEW pattern, no events)
+%   ├── README.md
+%   └── web/
+%       ├── index.html
+%       ├── main.js (DataChanged listener only)
+%       ├── render.js (Observable Plot visualization)
+%       ├── styles.css
+%       └── vendor/
+%           ├── d3.min.js (copied from lib/observable-plot/)
+%           └── plot.min.js (copied from lib/observable-plot/)
+```
+
+**D3 Component Example:**
+```matlab
+% Create an interactive component with D3
+createComponentTemplate("RangeSelector", "library", "d3", "type", "component")
+
+% This creates:
+% components/@RangeSelector/
+%   ├── RangeSelector.m (COMPONENT pattern with events)
+%   ├── README.md
+%   └── web/
+%       ├── index.html
+%       ├── main.js (bidirectional communication)
+%       ├── render.js (D3 v5 with event dispatching)
+%       ├── styles.css
+%       └── vendor/
+%           └── d3.v5.9.2.min.js (copied from lib/d3/)
+```
+
+**Implementation Steps:**
+1. Run `createComponentTemplate()` with appropriate arguments
+2. Open `web/render.js` and implement visualization logic:
+   - For Observable Plot: Use `Plot.plot()` with marks
+   - For D3: Use D3 v5 patterns (access events via `d3.event`)
+3. Update `ComponentName.m`:
+   - Add properties with validation
+   - Update `update()` method to send properties to JavaScript
+   - For components: Add event handlers and callbacks
+4. Test in browser first (`tests/html/test_ComponentName.html`)
+5. Test in MATLAB (`tests/matlab/test_ComponentName.m`)
+6. Update README with usage examples
+
+### Method 2: Manual Creation
+
+If templates don't fit your needs, follow the standard structure:
+
+1. Create `components/@ComponentName/` or `views/@ViewName/` folder
 2. Create MATLAB class extending `ComponentContainer`:
    - Define public properties
    - Implement `setup()` and `update()` methods
@@ -388,12 +499,21 @@ Note: Follow MATLAB's standard event pattern where `ValueChanging` fires during 
 5. Create `web/styles.css` for component-specific styles
 6. Create `web/main.js` with `setup()` function
 7. Create `web/render.js` with visualization logic
-8. **Create `web/vendor/` directory and copy required D3 version**
+8. **Create `web/vendor/` directory and copy required libraries**
 9. **Create `README.md` documenting exact dependency versions**
 10. Ensure `index.html` references all files with correct relative paths
 11. **Update root `manifest.json` with new component entry**
 
 ## Adding New Views
+
+### Using Templates (Recommended)
+
+```matlab
+% Create an Observable Plot view
+createComponentTemplate("ScatterView", "library", "observable-plot", "type", "view")
+```
+
+### Manual Creation (if needed)
 
 1. Create `views/@ViewName/` folder
 2. Create MATLAB class extending `ComponentContainer`:
@@ -407,7 +527,7 @@ Note: Follow MATLAB's standard event pattern where `ValueChanging` fires during 
 5. Create `web/styles.css` for view-specific styles
 6. Create `web/main.js` with simplified `setup()` function (DataChanged listener only)
 7. Create `web/render.js` with pure visualization logic (no event dispatching)
-8. **Create `web/vendor/` directory and copy required D3 version**
+8. **Create `web/vendor/` directory and copy required libraries**
 9. **Create `README.md` documenting exact dependency versions**
 10. Ensure `index.html` references all files with correct relative paths
 11. **Update root `manifest.json` with new view entry**
