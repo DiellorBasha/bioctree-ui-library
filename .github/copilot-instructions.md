@@ -75,16 +75,19 @@ All components must implement:
    comp.HTMLComponent.HTMLSource = 'ComponentName.html';  % Correct - matches class name
    ```
 
-2. **HTML components auto-fill their container** - Don't set Units or Position manually
+2. **HTML component Position must be explicitly set** - Set position relative to ComponentContainer
    ```matlab
-   % Incorrect - Units/Position not supported on HTML components
-   % comp.HTMLComponent.Units = 'normalized';
-   % comp.HTMLComponent.Position = [0 0 1 1];
-   
-   % Correct - HTML component automatically fills the ComponentContainer
+   % In setup() - initial positioning
    comp.HTMLComponent = uihtml(comp);
-   comp.HTMLComponent.HTMLSource = 'ComponentName.html';
+   comp.HTMLComponent.Position = [1 1 comp.Position(3:4)];  % [x y width height]
+   
+   % In update() - maintain sizing when properties change
+   comp.HTMLComponent.Position = [1 1 comp.Position(3:4)];
    ```
+   
+   The Position is relative to the ComponentContainer:
+   - `[1 1 ...]` - positioned at (1,1) within container
+   - `comp.Position(3:4)` - width and height match container dimensions
 
 3. **Property validation** - Use dependent properties with setters for complex validation
    ```matlab

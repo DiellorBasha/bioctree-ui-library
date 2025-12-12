@@ -83,11 +83,12 @@ classdef d3Brush < matlab.ui.componentcontainer.ComponentContainer
             % Create the HTML component that fills the container
             comp.HTMLComponent = uihtml(comp);
             
+            % Set HTML component position to fill the ComponentContainer
+            % Position relative to container: [x y width height]
+            comp.HTMLComponent.Position = [1 1 comp.Position(3:4)];
+            
             % Use relative path for HTMLSource (required for toolbox packaging)
             comp.HTMLComponent.HTMLSource = 'd3Brush.html';
-            
-            % HTML components automatically fill their parent container
-            % No need to set Position - the ComponentContainer handles layout
             
             % Set up event listener for HTML events from JavaScript
             comp.HTMLComponent.HTMLEventReceivedFcn = @(src, event) comp.handleBrushEvent(event);
@@ -110,6 +111,9 @@ classdef d3Brush < matlab.ui.componentcontainer.ComponentContainer
                 return;
             end
             
+            % Update HTML component position to match container size
+            comp.HTMLComponent.Position = [1 1 comp.Position(3:4)];
+            
             % Prepare data structure for JavaScript
             brushData = struct();
             brushData.min = comp.Min;
@@ -117,20 +121,41 @@ classdef d3Brush < matlab.ui.componentcontainer.ComponentContainer
             brushData.snapInterval = comp.SnapInterval;
             brushData.initialSelection = comp.Value_;
             
+            % Preserve currentSelection if it exists (set by JavaScript during interaction)
+            if ~isempty(comp.HTMLComponent.Data) && isfield(comp.HTMLComponent.Data, 'currentSelection')
+                brushData.currentSelection = comp.HTMLComponent.Data.currentSelection;
+            end
+            
             % Send data to JavaScript (triggers DataChanged event in HTML)
             comp.HTMLComponent.Data = brushData;
         end
         
         function handleBrushEvent(comp, event)
-            % Handle events received from JavaScript via CustomEvent
+            % Handle events received from JavaScript via sendEventToMATLAB
             eventName = event.HTMLEventName;
             
-            try
-                % Decode the JSON data from the CustomEvent detail
-                eventData = jsondecode(event.HTMLEventData);
-            catch ME
-                warning('d3Brush:InvalidJSON', 'Failed to decode event data: %s', ME.message);
-                return;
+            % Parse event name and data (format: "EventName:JSONData")
+            colonIdx = strfind(eventName, ':');
+            currentSelection = [];
+            
+            if ~isempty(colonIdx)
+                % Extract event type and JSON data
+                eventType = eventName(1:colonIdx(1)-1);
+                jsonData = eventName(colonIdx(1)+1:end);
+                
+                % Parse JSON data
+                if ~strcmp(jsonData, 'null')
+                    try
+                        data = jsondecode(jsonData);
+                        if isfield(data, 'selection')
+                            currentSelection = data.selection;
+                        end
+                    catch
+                        % Silent failure - invalid JSON
+                    end
+                end
+                
+                eventName = eventType;  % Use parsed event type
             end
             
             switch eventName
@@ -138,11 +163,10 @@ classdef d3Brush < matlab.ui.componentcontainer.ComponentContainer
                     % Notify that brush interaction started
                     notify(comp, 'BrushStarted');
                     
-                case {'BrushMoving', 'ValueChanging'}
+                case 'BrushMoving'
                     % Throttle rapid brush movement events
-                    % Accept both event names for compatibility
-                    if isfield(eventData, 'selection') && ~isempty(eventData.selection)
-                        comp.PendingSelection = eventData.selection;
+                    if ~isempty(currentSelection) && isnumeric(currentSelection) && numel(currentSelection) == 2
+                        comp.PendingSelection = currentSelection;
                         
                         % Restart throttle timer
                         if strcmp(comp.ThrottleTimer.Running, 'on')
@@ -152,10 +176,10 @@ classdef d3Brush < matlab.ui.componentcontainer.ComponentContainer
                     end
                     
                 case 'ValueChanged'
-                    if isfield(eventData, 'selection') && ~isempty(eventData.selection)
+                    if ~isempty(currentSelection) && isnumeric(currentSelection) && numel(currentSelection) == 2
                         % Update Value property (on brush release)
                         oldValue = comp.Value_;
-                        comp.Value_ = eventData.selection;
+                        comp.Value_ = currentSelection;
                         
                         % Create event data with previous and new values
                         evtData = matlab.ui.eventdata.ValueChangedData(oldValue, comp.Value_);

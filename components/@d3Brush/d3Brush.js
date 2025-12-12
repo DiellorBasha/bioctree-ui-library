@@ -16,9 +16,10 @@ function setup(htmlComponent) {
         var data = htmlComponent.Data;
         
         // Draw the brush with initial data
+        // renderBrush() will automatically retry if container dimensions aren't ready
         console.log('[d3Brush] Calling renderBrush...');
         renderBrush(data, htmlComponent);
-        console.log('[d3Brush] renderBrush completed');
+        console.log('[d3Brush] renderBrush initiated');
         
         // Listen for data changes from MATLAB (when properties are updated)
         htmlComponent.addEventListener("DataChanged", function(event) {

@@ -6,7 +6,11 @@
  * Event Model: D3 v5 (uses d3.event global)
  */
 
-function renderBrush(data, htmlComponent) {
+function renderBrush(data, htmlComponent, retryCount) {
+    // Track retry attempts (default to 0)
+    retryCount = retryCount || 0;
+    var maxRetries = 20;  // Maximum 20 retries = 1 second total wait
+    
     // Validate data object
     if (!data || typeof data !== 'object') {
         console.error('[renderBrush] Invalid data object:', data);
@@ -29,10 +33,20 @@ function renderBrush(data, htmlComponent) {
     var containerHeight = container.node().getBoundingClientRect().height;
     
     // Validate container has valid dimensions
+    // If dimensions are invalid, retry after a short delay
     if (containerWidth <= 0 || containerHeight <= 0) {
-        console.warn('[renderBrush] Container has invalid dimensions:', containerWidth, 'x', containerHeight);
+        if (retryCount < maxRetries) {
+            console.warn('[renderBrush] Container has invalid dimensions:', containerWidth, 'x', containerHeight, '- retry', (retryCount + 1), 'of', maxRetries);
+            setTimeout(function() {
+                renderBrush(data, htmlComponent, retryCount + 1);
+            }, 50);
+        } else {
+            console.error('[renderBrush] Failed to get valid container dimensions after', maxRetries, 'retries');
+        }
         return;
     }
+    
+    console.log('[renderBrush] Rendering with dimensions:', containerWidth, 'x', containerHeight);
     
     // Set margins
     var margin = {top: 10, right: 20, bottom: 30, left: 20};
@@ -133,6 +147,9 @@ function renderBrush(data, htmlComponent) {
         .on("brush", brushed)
         .on("end", brushEnded);
     
+    // Track last valid selection to restore if brush is cleared accidentally
+    var lastValidSelection = initialSelection;
+    
     // Add brush group
     var brushGroup = g.append('g')
         .attr('class', 'brush')
@@ -148,11 +165,9 @@ function renderBrush(data, htmlComponent) {
         var event = d3.event;  // D3 v5 uses d3.event global, not a parameter
         if (!event || !event.sourceEvent) return;
         
-        // Send brushStart event to MATLAB using CustomEvent
-        if (htmlComponent) {
-            htmlComponent.dispatchEvent(new CustomEvent('BrushStarted', {
-                detail: JSON.stringify({ type: 'brushStart' })
-            }));
+        // Send brushStart event to MATLAB using sendEventToMATLAB
+        if (htmlComponent && htmlComponent.sendEventToMATLAB) {
+            htmlComponent.sendEventToMATLAB("BrushStarted");
         }
     }
     
@@ -181,14 +196,15 @@ function renderBrush(data, htmlComponent) {
             .duration(50)  // Reduced for more responsive feel
             .call(brush.move, d1.map(xScale));
         
-        // Send brushMove event to MATLAB using CustomEvent
-        if (htmlComponent) {
-            htmlComponent.dispatchEvent(new CustomEvent('BrushMoving', {
-                detail: JSON.stringify({ 
-                    type: 'brushMove',
-                    selection: d1 
-                })
-            }));
+        // Send brushMove event to MATLAB with selection data
+        if (htmlComponent && htmlComponent.sendEventToMATLAB) {
+            // Pass selection as JSON in event name to avoid race conditions
+            var eventData = JSON.stringify({selection: [d1[0], d1[1]]});
+            console.log('[d3Brush] BrushMoving - selection:', [d1[0], d1[1]]);
+            htmlComponent.sendEventToMATLAB("BrushMoving:" + eventData);
+            
+            // Update last valid selection
+            lastValidSelection = [d1[0], d1[1]];
         }
     }
     
@@ -196,29 +212,37 @@ function renderBrush(data, htmlComponent) {
         var event = d3.event;  // D3 v5 uses d3.event global, not a parameter
         if (!event) return;
         
+        // Only process user-initiated events (ignore programmatic brush.move calls)
+        if (!event.sourceEvent) return;
+        
+        // If brush was cleared (clicked outside), allow it to clear visually
+        // but don't send any event to MATLAB (keep the previous value)
         if (!event.selection) {
-            // Send cleared event using CustomEvent
-            if (htmlComponent) {
-                htmlComponent.dispatchEvent(new CustomEvent('ValueChanged', {
-                    detail: JSON.stringify({ 
-                        type: 'brushEnd',
-                        selection: null 
-                    })
-                }));
-            }
-        } else {
-            // Get the final snapped selection
-            var selection = event.selection.map(xScale.invert);
-            
-            // Send brushEnd event to MATLAB using CustomEvent
-            if (htmlComponent) {
-                htmlComponent.dispatchEvent(new CustomEvent('ValueChanged', {
-                    detail: JSON.stringify({ 
-                        type: 'brushEnd',
-                        selection: selection 
-                    })
-                }));
-            }
+            console.log('[d3Brush] Brush cleared visually - no event sent to MATLAB');
+            // The brush will clear visually (D3's default behavior)
+            // but MATLAB retains the last valid value
+            return;
+        }
+        
+        // Apply the same snapping logic as brushed() to ensure consistency
+        var selection = event.selection;
+        var d0 = selection.map(xScale.invert);
+        var d1 = d0.map(interval.round);
+        
+        // If empty when rounded, use floor instead
+        if (d1[0] >= d1[1]) {
+            d1[0] = interval.floor(d0[0]);
+            d1[1] = interval.offset(d1[0]);
+        }
+        
+        // Update last valid selection
+        lastValidSelection = [d1[0], d1[1]];
+        
+        // Send ValueChanged event to MATLAB with snapped selection
+        console.log('[d3Brush] BrushEnded - final selection:', d1);
+        if (htmlComponent && htmlComponent.sendEventToMATLAB) {
+            var eventData = JSON.stringify({selection: [d1[0], d1[1]]});
+            htmlComponent.sendEventToMATLAB("ValueChanged:" + eventData);
         }
     }
 }
