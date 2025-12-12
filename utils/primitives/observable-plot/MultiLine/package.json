@@ -1,0 +1,14 @@
+{
+  "name": "@observablehq/plot-multiple-line-chart",
+  "main": "28f0ee3d187a489a@11.js",
+  "version": "11.0.0",
+  "homepage": "https://observablehq.com/@observablehq/plot-multiple-line-chart",
+  "author": {
+    "name": "Observable",
+    "url": "https://observablehq.com/@observablehq"
+  },
+  "type": "module",
+  "peerDependencies": {
+    "@observablehq/runtime": "4 - 5"
+  }
+}
