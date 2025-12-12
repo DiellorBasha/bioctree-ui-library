@@ -6,6 +6,23 @@ An interactive brush component for selecting ranges on a continuous scale with s
 
 The `d3Brush` component provides a visual interface for selecting a numeric range with automatic snapping to specified intervals. It's ideal for filtering data, selecting time ranges, or any scenario requiring bounded numeric input with visual feedback.
 
+## Component Structure
+
+The d3Brush component follows the standardized web/ directory structure:
+
+```
+@d3Brush/
+├── d3Brush.m              # MATLAB class
+├── web/
+│   ├── index.html         # HTML entry point
+│   ├── main.js            # Bootstrap/lifecycle controller
+│   ├── render.js          # D3 visualization logic
+│   ├── styles.css         # Component styles
+│   └── vendor/
+│       └── d3.v5.9.2.min.js
+└── README.md
+```
+
 ## Installation
 
 The d3Brush component is included in the bioctree UI Library. Ensure the component directory is on your MATLAB path:

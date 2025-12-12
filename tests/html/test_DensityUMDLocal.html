@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>DensityStrip – UMD Local Test</title>
+
+  <style>
+    body {
+      margin: 0;
+      padding: 10px;
+      font-family: sans-serif;
+    }
+    #plot {
+      width: 100%;
+    }
+  </style>
+</head>
+<body>
+
+<h3>DensityStrip – UMD + Local Observable Plot</h3>
+<div id="plot"></div>
+
+<!-- Load Observable Plot UMD dependencies -->
+<script src="../../lib/observable-plot/d3.min.js"></script>
+<script src="../../lib/observable-plot/plot.min.js"></script>
+
+<script>
+  console.log("[Test] Plot version:", Plot?.version);
+
+  // Load the Faithful dataset (TSV)
+  d3.tsv("../data/faithful.tsv", d3.autoType).then(data => {
+    console.log("[Data Loaded] Faithful geyser data:", data.length, "observations");
+
+    const waiting = data.map(d => d.waiting);
+
+    console.log(
+      "[Data Stats] Waiting range:",
+      Math.min(...waiting),
+      "-",
+      Math.max(...waiting)
+    );
+
+    const plot = Plot.plot({
+      height: 120,
+      inset: 10,
+      marks: [
+        // 1D density along x
+        Plot.density(waiting, {
+          x: d => d,
+          bandwidth: 10,
+          thresholds: 4,
+          stroke: "steelblue"
+        }),
+
+        // Individual points
+        Plot.dot(waiting, {
+          x: d => d,
+          r: 1.5,
+          fill: "currentColor"
+        })
+      ]
+    });
+
+    document.getElementById("plot").append(plot);
+  })
+  .catch(err => {
+    console.error("[Data Load Error]", err);
+  });
+</script>
+
+</body>
+</html>

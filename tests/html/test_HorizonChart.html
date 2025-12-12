@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HorizonChart Test Suite</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            margin: 20px;
+            background: #f5f5f5;
+        }
+        .test-section {
+            background: white;
+            margin-bottom: 20px;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            border-bottom: 2px solid #4CAF50;
+            padding-bottom: 10px;
+        }
+        h2 {
+            color: #666;
+            margin-top: 0;
+        }
+        .horizon-container {
+            width: 100%;
+            height: 600px;
+            border: 1px solid #ddd;
+            margin-top: 10px;
+        }
+        .small-container {
+            height: 400px;
+        }
+        .info {
+            background: #e3f2fd;
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 10px;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <h1>HorizonChart View Component - Browser Tests</h1>
+    
+    <div class="test-section">
+        <h2>Test 1: Basic Horizon Chart (3 Bands)</h2>
+        <div class="info">
+            <strong>Configuration:</strong> bands=3, step=500, colorScheme="Greens"<br>
+            <strong>Data:</strong> Traffic data (multiple locations, hourly time series)
+        </div>
+        <div id="test1" class="horizon-container"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>Test 2: More Bands (5 Bands)</h2>
+        <div class="info">
+            <strong>Configuration:</strong> bands=5, step=400, colorScheme="Blues"<br>
+            <strong>Purpose:</strong> More granular view with smaller step size
+        </div>
+        <div id="test2" class="horizon-container"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>Test 3: Custom Color Scheme</h2>
+        <div class="info">
+            <strong>Configuration:</strong> bands=4, step=500, colorScheme="Oranges"<br>
+            <strong>Purpose:</strong> Different color palette
+        </div>
+        <div id="test3" class="horizon-container"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>Test 4: Auto-calculated Step (Step = 0)</h2>
+        <div class="info">
+            <strong>Configuration:</strong> bands=3, step=0 (auto), colorScheme="Purples"<br>
+            <strong>Purpose:</strong> Automatic step calculation based on max value
+        </div>
+        <div id="test4" class="horizon-container"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>Test 5: Fewer Bands (2 Bands)</h2>
+        <div class="info">
+            <strong>Configuration:</strong> bands=2, step=600, colorScheme="Reds"<br>
+            <strong>Purpose:</strong> Simplified view with larger steps
+        </div>
+        <div id="test5" class="horizon-container small-container"></div>
+    </div>
+    
+    <!-- Load libraries from lib/observable-plot -->
+    <script src="../../lib/observable-plot/d3.min.js"></script>
+    <script src="../../lib/observable-plot/plot.min.js"></script>
+    
+    <!-- Load component rendering logic -->
+    <script src="../../views/@HorizonChart/web/render.js"></script>
+    
+    <script>
+        console.log('[Test Suite] Loading traffic data...');
+        
+        // Load traffic data
+        d3.csv('../data/traffic.csv', d3.autoType).then(function(trafficData) {
+            console.log('[Test Suite] Data loaded:', trafficData.length, 'rows');
+            
+            // Test 1: Basic horizon chart (3 bands)
+            console.log('[Test 1] Rendering basic horizon chart...');
+            var container1 = document.getElementById('test1');
+            var mockComponent1 = {
+                Data: {
+                    data: trafficData,
+                    bands: 3,
+                    step: 500,
+                    colorScheme: "Greens",
+                    showLegend: true
+                }
+            };
+            
+            // Temporarily replace querySelector to return our test container
+            var originalQuery = document.querySelector;
+            document.querySelector = function(selector) {
+                if (selector === '.horizon-container') return container1;
+                return originalQuery.call(document, selector);
+            };
+            renderHorizonChart(mockComponent1.Data);
+            document.querySelector = originalQuery;
+            
+            // Test 2: More bands (5 bands)
+            console.log('[Test 2] Rendering with 5 bands...');
+            var container2 = document.getElementById('test2');
+            var mockComponent2 = {
+                Data: {
+                    data: trafficData,
+                    bands: 5,
+                    step: 400,
+                    colorScheme: "Blues",
+                    showLegend: true
+                }
+            };
+            document.querySelector = function(selector) {
+                if (selector === '.horizon-container') return container2;
+                return originalQuery.call(document, selector);
+            };
+            renderHorizonChart(mockComponent2.Data);
+            document.querySelector = originalQuery;
+            
+            // Test 3: Custom color scheme
+            console.log('[Test 3] Rendering with Oranges color scheme...');
+            var container3 = document.getElementById('test3');
+            var mockComponent3 = {
+                Data: {
+                    data: trafficData,
+                    bands: 4,
+                    step: 500,
+                    colorScheme: "Oranges",
+                    showLegend: true
+                }
+            };
+            document.querySelector = function(selector) {
+                if (selector === '.horizon-container') return container3;
+                return originalQuery.call(document, selector);
+            };
+            renderHorizonChart(mockComponent3.Data);
+            document.querySelector = originalQuery;
+            
+            // Test 4: Auto-calculated step
+            console.log('[Test 4] Rendering with auto-calculated step...');
+            var container4 = document.getElementById('test4');
+            var mockComponent4 = {
+                Data: {
+                    data: trafficData,
+                    bands: 3,
+                    step: 0,  // Auto-calculate
+                    colorScheme: "Purples",
+                    showLegend: true
+                }
+            };
+            document.querySelector = function(selector) {
+                if (selector === '.horizon-container') return container4;
+                return originalQuery.call(document, selector);
+            };
+            renderHorizonChart(mockComponent4.Data);
+            document.querySelector = originalQuery;
+            
+            // Test 5: Fewer bands (2 bands)
+            console.log('[Test 5] Rendering with 2 bands...');
+            var container5 = document.getElementById('test5');
+            var mockComponent5 = {
+                Data: {
+                    data: trafficData,
+                    bands: 2,
+                    step: 600,
+                    colorScheme: "Reds",
+                    showLegend: true
+                }
+            };
+            document.querySelector = function(selector) {
+                if (selector === '.horizon-container') return container5;
+                return originalQuery.call(document, selector);
+            };
+            renderHorizonChart(mockComponent5.Data);
+            document.querySelector = originalQuery;
+            
+            console.log('[Test Suite] All tests complete!');
+        }).catch(function(error) {
+            console.error('[Test Suite] Error loading data:', error);
+        });
+    </script>
+</body>
+</html>

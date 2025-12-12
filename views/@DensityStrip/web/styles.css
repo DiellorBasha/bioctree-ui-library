@@ -1,0 +1,66 @@
+/* DensityStrip View Styles */
+html, body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    font-family: Arial, sans-serif;
+    overflow: hidden;
+}
+
+.density-container {
+    width: 100%;
+    height: 100%;
+    min-height: 100px;
+    position: relative;
+    background: #fff;
+}
+
+svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+}
+
+/* Title styling */
+.title {
+    font-size: 14px;
+    font-weight: bold;
+    fill: #333;
+}
+
+/* Axis styling */
+.axis {
+    font-size: 11px;
+}
+
+.axis .domain {
+    stroke: #ccc;
+}
+
+.axis .tick line {
+    stroke: #ccc;
+}
+
+.axis .tick text {
+    fill: #666;
+}
+
+/* Density visualization */
+.density-line {
+    stroke-linejoin: round;
+    stroke-linecap: round;
+}
+
+.density-contour {
+    stroke: none;
+}
+
+/* Data points */
+.dots circle {
+    transition: opacity 0.2s ease;
+}
+
+.dots circle:hover {
+    opacity: 1 !important;
+}

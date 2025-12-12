@@ -24,14 +24,14 @@ The library bridges MATLAB's computational power with D3.js's visualization capa
 ┌────────────────┼─────────────────────────────────────┼───┐
 │                │       JavaScript Layer              │   │
 │  ┌─────────────▼─────────────────────────────────────▼─┐ │
-│  │ Controller (d3Brush.js)                             │ │
+│  │ Controller (web/main.js)                            │ │
 │  │  • Lifecycle Management                             │ │
 │  │  • Data Reception                                   │ │
 │  │  • Event Dispatching                                │ │
 │  └─────────────┬───────────────────────────────────────┘ │
 │                │ renderBrush(data)                       │
 │  ┌─────────────▼───────────────────────────────────────┐ │
-│  │ Renderer (d3Brush.render.js)                        │ │
+│  │ Renderer (web/render.js)                            │ │
 │  │  • D3.js Visualization                              │ │
 │  │  • SVG Creation                                     │ │
 │  │  • Interaction Handling                             │ │
@@ -46,13 +46,13 @@ Each component follows a standardized file structure:
 ```
 @ComponentName/
 ├── ComponentName.m          # MATLAB class
-├── ComponentName.html       # HTML template
-├── ComponentName.css        # Styles
-├── ComponentName.js         # Controller
-├── ComponentName.render.js  # Renderer
-├── ComponentName.utils.js   # Optional utilities
-├── vendor/                  # Bundled dependencies
-│   └── d3.v5.9.2.min.js
+├── web/                     # Web assets directory
+│   ├── index.html          # HTML entry point
+│   ├── main.js             # Controller/lifecycle
+│   ├── render.js           # D3 visualization logic
+│   ├── styles.css          # Component styles
+│   └── vendor/             # Bundled dependencies
+│       └── d3.v5.9.2.min.js
 └── README.md               # Documentation
 ```
 
@@ -79,7 +79,7 @@ classdef d3Brush < matlab.ui.componentcontainer.ComponentContainer
     methods (Access = protected)
         function setup(comp)
             comp.HTMLComponent = uihtml(comp);
-            comp.HTMLComponent.HTMLSource = 'd3Brush.html';
+            comp.HTMLComponent.HTMLSource = d3Brush.resolveHTMLSource();
             comp.HTMLComponent.HTMLEventReceivedFcn = @(src, event) ...
                 comp.handleBrushEvent(event);
             comp.update();
@@ -92,29 +92,42 @@ classdef d3Brush < matlab.ui.componentcontainer.ComponentContainer
                 'initialSelection', comp.Value);
         end
     end
+    
+    methods (Access = private, Static)
+        function htmlPath = resolveHTMLSource()
+            % Resolve path to web/index.html
+            classFile = mfilename('fullpath');
+            classDir = fileparts(classFile);
+            htmlPath = fullfile(classDir, 'web', 'index.html');
+        end
+    end
 end
 ```
 
-#### 2. HTML Template (`ComponentName.html`)
+**Path Resolution:** The `resolveHTMLSource()` static method uses `mfilename('fullpath')` to resolve the path to `web/index.html` relative to the class file. This approach works in both development and packaged toolbox scenarios.
 
-Loads scripts and defines the container structure:
+#### 2. HTML Entry Point (`web/index.html`)
+
+Loads scripts and defines the container structure with relative paths:
 
 ```html
 <!DOCTYPE html>
 <html>
 <head>
-    <link rel="stylesheet" href="ComponentName.css">
+    <link rel="stylesheet" href="styles.css">
     <script src="vendor/d3.v5.9.2.min.js"></script>
 </head>
 <body>
     <div class="component-container"></div>
-    <script src="ComponentName.render.js"></script>
-    <script src="ComponentName.js"></script>
+    <script src="render.js"></script>
+    <script src="main.js"></script>
 </body>
 </html>
 ```
 
-#### 3. Controller (`ComponentName.js`)
+**Note:** All paths are relative to the `web/` directory, following standard web conventions.
+
+#### 3. Controller (`web/main.js`)
 
 Manages lifecycle and MATLAB communication:
 
@@ -131,7 +144,7 @@ function setup(htmlComponent) {
 }
 ```
 
-#### 4. Renderer (`ComponentName.render.js`)
+#### 4. Renderer (`web/render.js`)
 
 Pure D3.js visualization logic:
 

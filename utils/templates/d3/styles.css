@@ -1,0 +1,49 @@
+/* {{COMPONENT_NAME}} Component Styles */
+
+html, body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    overflow: hidden;
+}
+
+.{{CONTAINER_CLASS}} {
+    width: 100%;
+    height: 100%;
+    min-height: 80px;
+    position: relative;
+}
+
+svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+}
+
+/* TODO: Add component-specific styles */
+
+/* Example D3 element styling */
+.selection {
+    fill: steelblue;
+    fill-opacity: 0.3;
+    stroke: steelblue;
+    stroke-width: 2px;
+}
+
+.axis {
+    font-size: 12px;
+}
+
+.axis .domain {
+    stroke: #ddd;
+}
+
+.axis .tick line {
+    stroke: #eee;
+}
+
+.axis .tick text {
+    fill: #666;
+}

@@ -3,6 +3,10 @@
 ## Project Overview
 Library of custom UI components built with D3.js for integration with MATLAB. Components are MATLAB classes that embed HTML/CSS/JavaScript to create interactive visualizations using the `matlab.ui.componentcontainer.ComponentContainer` pattern.
 
+The library provides two types of component architectures:
+- **Components** (`components/@ComponentName/`) - Interactive components with bidirectional data flow, events, and callbacks
+- **Views** (`views/@ViewName/`) - Read-only data visualization components with one-way data flow
+
 ## Architecture
 
 ### Component Structure
@@ -163,6 +167,107 @@ function renderComponent(data, htmlComponent) {
 }
 ```
 
+## Views vs Components
+
+### Views (`views/@ViewName/`)
+Views are **read-only data visualization components** with simplified architecture:
+
+**Purpose:**
+- Display data without user interaction
+- One-way data flow (MATLAB → JavaScript only)
+- Pure visualization rendering
+
+**Structure:** Same as components
+```
+views/@ViewName/
+├── ViewName.m              # MATLAB class
+├── README.md
+└── web/
+    ├── index.html
+    ├── main.js            # Simplified: only DataChanged listener
+    ├── render.js          # Pure rendering, no event dispatching
+    ├── styles.css
+    └── vendor/
+```
+
+**Key Differences from Components:**
+
+| Aspect | Components | Views |
+|--------|-----------|-------|
+| **Data Flow** | Bidirectional | One-way (MATLAB → JS) |
+| **Properties** | Multiple interactive properties | Minimal (usually just `Data`) |
+| **Events** | Multiple (ValueChanged, etc.) | None |
+| **Callbacks** | Yes (ValueChangedFcn, etc.) | None |
+| **MATLAB Methods** | `setup()`, `update()`, event handlers, `delete()` | `setup()`, `update()` only |
+| **JavaScript** | Controller + event dispatching | Simplified controller, no events |
+| **Use Case** | Interactive selection, filtering | Charts, graphs, static visualizations |
+
+**View Constraints:**
+1. ❌ **No events** - No `events` block in MATLAB class
+2. ❌ **No callbacks** - No `HasCallbackProperty` properties
+3. ❌ **No event dispatching** - JavaScript should not call `htmlComponent.dispatchEvent()`
+4. ❌ **No event handlers** - No `HTMLEventReceivedFcn` in setup
+5. ✅ **Simplified update** - Only pushes data via `HTMLComponent.Data`
+6. ✅ **Pure rendering** - JavaScript only visualizes data
+
+**Example View Structure:**
+```matlab
+classdef BarChartView < matlab.ui.componentcontainer.ComponentContainer
+    properties
+        Data (:,2) double = []  % [categories, values]
+        Title string = ""
+    end
+    
+    methods (Access = protected)
+        function setup(comp)
+            comp.HTMLComponent = uihtml(comp);
+            comp.HTMLComponent.HTMLSource = BarChartView.resolveHTMLSource();
+            comp.update();
+        end
+        
+        function update(comp)
+            viewData = struct();
+            viewData.data = comp.Data;
+            viewData.title = comp.Title;
+            comp.HTMLComponent.Data = viewData;
+        end
+    end
+    
+    methods (Access = private, Static)
+        function htmlPath = resolveHTMLSource()
+            classFile = mfilename('fullpath');
+            classDir = fileparts(classFile);
+            htmlPath = fullfile(classDir, 'web', 'index.html');
+        end
+    end
+end
+```
+
+**Example View JavaScript (main.js):**
+```javascript
+function setup(htmlComponent) {
+    // Initial render
+    renderView(htmlComponent.Data);
+    
+    // Update on data changes (one-way only)
+    htmlComponent.addEventListener("DataChanged", function(event) {
+        renderView(htmlComponent.Data);
+    });
+}
+```
+
+**When to Use Views:**
+- Static charts (bar, line, scatter plots)
+- Dashboards with read-only metrics
+- Data previews and summaries
+- Any visualization without user interaction
+
+**When to Use Components:**
+- Brushing and selection tools
+- Interactive filters
+- Editable visualizations
+- Any UI requiring callbacks
+
 ## File Organization
 
 ### Asset Structure
@@ -226,6 +331,13 @@ HTML files reference scripts and styles with relative paths from `web/` director
 - **Event Model:** D3 v5 (uses d3.event global)
 ```
 
+**Observable Plot for Views:**
+- Views may use Observable Plot instead of D3.js for specialized visualizations
+- Observable Plot provides high-level declarative API via `Plot.plot()`
+- Example: DensityStrip uses `Plot.densityX()` for density bands
+- Version: `plot.v0.6.14.umd.min.js` bundled in view's `web/vendor/`
+- Observable Plot internally uses D3 but provides simpler API
+
 ## Development Conventions
 
 ### Naming Conventions
@@ -280,6 +392,33 @@ Note: Follow MATLAB's standard event pattern where `ValueChanging` fires during 
 9. **Create `README.md` documenting exact dependency versions**
 10. Ensure `index.html` references all files with correct relative paths
 11. **Update root `manifest.json` with new component entry**
+
+## Adding New Views
+
+1. Create `views/@ViewName/` folder
+2. Create MATLAB class extending `ComponentContainer`:
+   - Define minimal public properties (usually just `Data` and optional `Title`)
+   - **Do NOT add `events` block**
+   - **Do NOT add callback properties**
+   - Implement `setup()` and `update()` methods only
+   - **Do NOT set `HTMLEventReceivedFcn`** in setup
+3. Create `web/` directory structure
+4. Create `web/index.html` (template only, no inline scripts)
+5. Create `web/styles.css` for view-specific styles
+6. Create `web/main.js` with simplified `setup()` function (DataChanged listener only)
+7. Create `web/render.js` with pure visualization logic (no event dispatching)
+8. **Create `web/vendor/` directory and copy required D3 version**
+9. **Create `README.md` documenting exact dependency versions**
+10. Ensure `index.html` references all files with correct relative paths
+11. **Update root `manifest.json` with new view entry**
+
+**Critical View Constraints:**
+- ❌ No `events` block in MATLAB class
+- ❌ No `HasCallbackProperty` properties
+- ❌ No `htmlComponent.dispatchEvent()` calls in JavaScript
+- ❌ No `HTMLEventReceivedFcn` in setup method
+- ✅ Only `setup()` and `update()` methods
+- ✅ Only `Data` property synchronization via `HTMLComponent.Data`
 
 ## Testing Workflow
 

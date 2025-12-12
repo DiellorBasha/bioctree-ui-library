@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DensityStrip View Test</title>
+    
+    <!-- Load Observable Plot UMD dependencies -->
+    <script src="../../lib/observable-plot/d3.min.js"></script>
+    <script src="../../lib/observable-plot/plot.min.js"></script>
+    
+    <!-- Load view CSS -->
+    <link rel="stylesheet" href="../../views/@DensityStrip/web/styles.css">
+    
+    <!-- Load view rendering logic -->
+    <script src="../../views/@DensityStrip/web/render.js"></script>
+    
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+            overflow-y: auto;
+        }
+        
+        .test-container {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .test-title {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: #333;
+        }
+        
+        .test-description {
+            color: #666;
+            margin-bottom: 15px;
+        }
+        
+        .density-container {
+            width: 100%;
+            height: 200px;
+            border: 1px solid #e0e0e0;
+            border-radius: 4px;
+            background: #fff;
+        }
+        
+        .controls {
+            margin-top: 15px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 4px;
+        }
+        
+        .control-group {
+            display: inline-block;
+            margin-right: 20px;
+            margin-bottom: 10px;
+        }
+        
+        .control-group label {
+            display: inline-block;
+            margin-right: 5px;
+            font-weight: bold;
+            color: #555;
+        }
+        
+        .control-group input,
+        .control-group select,
+        .control-group button {
+            padding: 5px 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        
+        .control-group button {
+            background: #007bff;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+        
+        .control-group button:hover {
+            background: #0056b3;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .header h1 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+        
+        .header p {
+            color: #666;
+        }
+        
+        .status {
+            padding: 10px;
+            margin-top: 10px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+        }
+        
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .status.info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>DensityStrip View Component Test</h1>
+        <p>Browser-based testing for Observable Plot density visualization</p>
+    </div>
+    
+    <!-- Test 1: Basic Density -->
+    <div class="test-container">
+        <div class="test-title">Test 1: Basic Density View</div>
+        <div class="test-description">Normal distribution (μ=50, σ=20, n=100)</div>
+        <div id="density1" class="density-container"></div>
+        <div id="status1" class="status info">Initializing...</div>
+    </div>
+    
+    <!-- Test 2: Custom Styling -->
+    <div class="test-container">
+        <div class="test-title">Test 2: Custom Styling</div>
+        <div class="test-description">Coral color, larger bandwidth, more contours</div>
+        <div id="density2" class="density-container"></div>
+        <div id="status2" class="status info">Initializing...</div>
+    </div>
+    
+    <!-- Test 3: Bandwidth Comparison -->
+    <div class="test-container">
+        <div class="test-title">Test 3: Bandwidth Comparison</div>
+        <div class="test-description">Same data, different bandwidths (small vs large)</div>
+        <div style="display: flex; gap: 20px;">
+            <div style="flex: 1;">
+                <p style="text-align: center; font-weight: bold;">Bandwidth = 3 (High Detail)</p>
+                <div id="density3a" class="density-container"></div>
+            </div>
+            <div style="flex: 1;">
+                <p style="text-align: center; font-weight: bold;">Bandwidth = 20 (Smooth)</p>
+                <div id="density3b" class="density-container"></div>
+            </div>
+        </div>
+        <div id="status3" class="status info">Initializing...</div>
+    </div>
+    
+    <!-- Test 4: Display Options -->
+    <div class="test-container">
+        <div class="test-title">Test 4: Display Options</div>
+        <div class="test-description">Toggle different visualization elements</div>
+        <div id="density4" class="density-container"></div>
+        <div class="controls">
+            <div class="control-group">
+                <label><input type="checkbox" id="showDots" checked> Show Dots</label>
+            </div>
+            <div class="control-group">
+                <label><input type="checkbox" id="showDensityLine" checked> Show Density Line</label>
+            </div>
+            <div class="control-group">
+                <label><input type="checkbox" id="showContours" checked> Show Contours</label>
+            </div>
+            <div class="control-group">
+                <label>Thresholds: <input type="number" id="thresholds" value="4" min="1" max="10" style="width: 60px;"></label>
+            </div>
+            <button onclick="updateTest4()">Update</button>
+        </div>
+        <div id="status4" class="status info">Initializing...</div>
+    </div>
+    
+    <!-- Test 5: Interactive Data Generator -->
+    <div class="test-container">
+        <div class="test-title">Test 5: Interactive Data Generator</div>
+        <div class="test-description">Generate new random data with custom parameters</div>
+        <div id="density5" class="density-container"></div>
+        <div class="controls">
+            <div class="control-group">
+                <label>Sample Size: <input type="number" id="sampleSize" value="150" min="10" max="1000" style="width: 80px;"></label>
+            </div>
+            <div class="control-group">
+                <label>Mean (μ): <input type="number" id="mean" value="60" step="5" style="width: 80px;"></label>
+            </div>
+            <div class="control-group">
+                <label>Std Dev (σ): <input type="number" id="stdDev" value="15" step="1" style="width: 80px;"></label>
+            </div>
+            <div class="control-group">
+                <label>Bandwidth: <input type="number" id="bandwidth" value="10" step="1" style="width: 80px;"></label>
+            </div>
+            <div class="control-group">
+                <label>Color: 
+                    <select id="color">
+                        <option value="steelblue">Steel Blue</option>
+                        <option value="coral">Coral</option>
+                        <option value="purple">Purple</option>
+                        <option value="green">Green</option>
+                        <option value="crimson">Crimson</option>
+                        <option value="teal">Teal</option>
+                    </select>
+                </label>
+            </div>
+            <button onclick="generateNewData()">Generate New Data</button>
+        </div>
+        <div id="status5" class="status info">Initializing...</div>
+    </div>
+    
+    <!-- Test 6: Empty Data -->
+    <div class="test-container">
+        <div class="test-title">Test 6: Empty Data Handling</div>
+        <div class="test-description">View with no data</div>
+        <div id="density6" class="density-container"></div>
+        <div id="status6" class="status info">Initializing...</div>
+    </div>
+    
+    <!-- Test Suite Logic using UMD pattern -->
+    <script>
+        console.log('[DensityStrip Test] Plot version:', Plot.version);
+        
+        // Utility function to generate normal distribution data
+        function generateNormalData(n, mean, stdDev) {
+            var data = [];
+            for (var i = 0; i < n; i++) {
+                // Box-Muller transform for normal distribution
+                var u1 = Math.random();
+                var u2 = Math.random();
+                var z = Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
+                data.push(mean + z * stdDev);
+            }
+            return data;
+        }
+        
+        // Load faithful geyser data from TSV file
+        var faithfulData = null;
+        var faithfulWaitingTimes = null;
+        var faithfulEruptions = null;
+        
+        // Load data asynchronously using d3.autoType for proper number conversion
+        d3.tsv('../data/faithful.tsv', d3.autoType).then(function(data) {
+            // Extract waiting times and eruptions
+            faithfulWaitingTimes = data.map(function(d) { return +d.waiting; });
+            faithfulEruptions = data.map(function(d) { return +d.eruptions; });
+            faithfulData = faithfulWaitingTimes; // Default to waiting times
+            
+            console.log('[Data Loaded] Faithful geyser data:', data.length, 'observations');
+            console.log('[Data Loaded] Waiting times range:', d3.min(faithfulWaitingTimes), '-', d3.max(faithfulWaitingTimes));
+            console.log('[Data Loaded] Eruptions range:', d3.min(faithfulEruptions), '-', d3.max(faithfulEruptions));
+            
+            // Initialize test4Data with faithful data
+            test4Data = faithfulWaitingTimes;
+            
+            // Start tests after data is loaded
+            startTests();
+        }).catch(function(error) {
+            console.error('[Data Load Error]', error);
+            console.warn('[Fallback] Using generated bimodal data');
+            
+            // Fallback to generated data
+            var data = [];
+            // Short eruptions cluster around 54 minutes
+            for (var i = 0; i < 100; i++) {
+                data.push(54 + (Math.random() - 0.5) * 10);
+            }
+            // Long eruptions cluster around 80 minutes
+            for (var i = 0; i < 170; i++) {
+                data.push(80 + (Math.random() - 0.5) * 14);
+            }
+            faithfulData = data;
+            faithfulWaitingTimes = data;
+            faithfulEruptions = [];
+            
+            // Start tests with fallback data
+            startTests();
+        });
+        
+        // Store current data for Test 4
+        var test4Data = faithfulData;
+        
+        // Test 1: Basic Density
+        function runTest1() {
+            console.log('[Test 1] Running basic density test');
+            
+            // Set container for this test
+            var oldContainer = document.querySelector('.density-container');
+            if (oldContainer) oldContainer.classList.remove('density-container');
+            document.getElementById('density1').classList.add('density-container');
+            
+            var viewData = {
+                data: faithfulData,
+                title: "Old Faithful Waiting Times",
+                bandwidth: 10,
+                color: "steelblue",
+                showDots: true,
+                showDensityLine: true,
+                showContours: true,
+                thresholds: 4
+            };
+            
+            renderDensity(viewData);
+            
+            document.getElementById('status1').className = 'status success';
+            document.getElementById('status1').textContent = 
+                '✓ Test 1 passed: Rendered ' + faithfulData.length + ' points (bimodal distribution), bandwidth=10';
+        }
+        
+        // Test 2: Custom Styling
+        function runTest2() {
+            console.log('[Test 2] Running custom styling test');
+            
+            // Set container
+            var oldContainer = document.querySelector('.density-container');
+            if (oldContainer) oldContainer.classList.remove('density-container');
+            document.getElementById('density2').classList.add('density-container');
+            
+            var viewData = {
+                data: faithfulData,
+                title: "Faithful Data - Custom Styling",
+                bandwidth: 8,
+                color: "coral",
+                showDots: true,
+                showDensityLine: true,
+                showContours: true,
+                thresholds: 6
+            };
+            
+            renderDensity(viewData);
+            
+            document.getElementById('status2').className = 'status success';
+            document.getElementById('status2').textContent = 
+                '✓ Test 2 passed: Custom styled with coral color, bandwidth=8, thresholds=6';
+        }
+        
+        // Test 3: Bandwidth Comparison
+        function runTest3() {
+            console.log('[Test 3] Running bandwidth comparison test');
+            
+            // Small bandwidth
+            var oldContainer = document.querySelector('.density-container');
+            if (oldContainer) oldContainer.classList.remove('density-container');
+            document.getElementById('density3a').classList.add('density-container');
+            
+            renderDensity({
+                data: faithfulData,
+                title: "High Detail",
+                bandwidth: 3,
+                color: "purple",
+                showDots: true,
+                showDensityLine: true,
+                showContours: true,
+                thresholds: 4
+            });
+            
+            // Large bandwidth
+            oldContainer = document.querySelector('.density-container');
+            if (oldContainer) oldContainer.classList.remove('density-container');
+            document.getElementById('density3b').classList.add('density-container');
+            
+            renderDensity({
+                data: faithfulData,
+                title: "Smooth",
+                bandwidth: 20,
+                color: "green",
+                showDots: true,
+                showDensityLine: true,
+                showContours: true,
+                thresholds: 4
+            });
+            
+            document.getElementById('status3').className = 'status success';
+            document.getElementById('status3').textContent = 
+                '✓ Test 3 passed: Faithful data (' + faithfulData.length + ' points) with different bandwidths';
+        }
+        
+        // Test 4: Display Options
+        function updateTest4() {
+            console.log('[Test 4] Updating display options');
+            
+            var oldContainer = document.querySelector('.density-container');
+            if (oldContainer) oldContainer.classList.remove('density-container');
+            document.getElementById('density4').classList.add('density-container');
+            
+            var viewData = {
+                data: test4Data,
+                title: "Display Options Demo",
+                bandwidth: 10,
+                color: "steelblue",
+                showDots: document.getElementById('showDots').checked,
+                showDensityLine: document.getElementById('showDensityLine').checked,
+                showContours: document.getElementById('showContours').checked,
+                thresholds: parseInt(document.getElementById('thresholds').value)
+            };
+            
+            renderDensity(viewData);
+            
+            document.getElementById('status4').className = 'status success';
+            document.getElementById('status4').textContent = 
+                '✓ Test 4 updated: dots=' + viewData.showDots + 
+                ', line=' + viewData.showDensityLine + 
+                ', contours=' + viewData.showContours +
+                ', thresholds=' + viewData.thresholds;
+        }
+        
+        function runTest4() {
+            updateTest4();
+        }
+        
+        // Test 5: Interactive Data Generator
+        function generateNewData() {
+            console.log('[Test 5] Generating new data');
+            
+            var n = parseInt(document.getElementById('sampleSize').value);
+            var mean = parseFloat(document.getElementById('mean').value);
+            var stdDev = parseFloat(document.getElementById('stdDev').value);
+            var bandwidth = parseFloat(document.getElementById('bandwidth').value);
+            var color = document.getElementById('color').value;
+            
+            var data = generateNormalData(n, mean, stdDev);
+            
+            var oldContainer = document.querySelector('.density-container');
+            if (oldContainer) oldContainer.classList.remove('density-container');
+            document.getElementById('density5').classList.add('density-container');
+            
+            var viewData = {
+                data: data,
+                title: "Generated: μ=" + mean + ", σ=" + stdDev + ", n=" + n,
+                bandwidth: bandwidth,
+                color: color,
+                showDots: true,
+                showDensityLine: true,
+                showContours: true,
+                thresholds: 4
+            };
+            
+            renderDensity(viewData);
+            
+            // Calculate mean and std
+            var dataMean = data.reduce(function(a, b) { return a + b; }, 0) / data.length;
+            var variance = data.reduce(function(a, b) { return a + Math.pow(b - dataMean, 2); }, 0) / data.length;
+            var dataStd = Math.sqrt(variance);
+            
+            document.getElementById('status5').className = 'status success';
+            document.getElementById('status5').textContent = 
+                '✓ Generated ' + n + ' points: mean=' + dataMean.toFixed(2) + 
+                ', std=' + dataStd.toFixed(2) + 
+                ', bandwidth=' + bandwidth + ', color=' + color;
+        }
+        
+        function runTest5() {
+            generateNewData();
+        }
+        
+        // Test 6: Empty Data
+        function runTest6() {
+            console.log('[Test 6] Running empty data test');
+            
+            var oldContainer = document.querySelector('.density-container');
+            if (oldContainer) oldContainer.classList.remove('density-container');
+            document.getElementById('density6').classList.add('density-container');
+            
+            var viewData = {
+                data: [],
+                title: "Empty Data",
+                bandwidth: 10,
+                color: "steelblue",
+                showDots: true,
+                showDensityLine: true,
+                showContours: true,
+                thresholds: 4
+            };
+            
+            renderDensity(viewData);
+            
+            document.getElementById('status6').className = 'status success';
+            document.getElementById('status6').textContent = 
+                '✓ Test 6 passed: Empty data handled gracefully with message';
+        }
+        
+        // Run all tests when page loads
+        function startTests() {
+            console.log('[DensityStrip Test Suite] Starting tests...');
+            
+            setTimeout(function() {
+                runTest1();
+                setTimeout(function() {
+                    runTest2();
+                    setTimeout(function() {
+                        runTest3();
+                        setTimeout(function() {
+                            runTest4();
+                            setTimeout(function() {
+                                runTest5();
+                                setTimeout(function() {
+                                    runTest6();
+                                    console.log('[DensityStrip Test Suite] All tests complete!');
+                                }, 100);
+                            }, 100);
+                        }, 100);
+                    }, 100);
+                }, 100);
+            }, 100);
+        }
+        
+        // Initialize on page load
+        window.addEventListener('load', function() {
+            console.log('[DensityStrip Test Suite] Page loaded, waiting for data...');
+            // Tests will start via startTests() after data loads
+        });
+    </script>
+
+</body>
+</html>

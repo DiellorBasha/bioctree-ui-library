@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{COMPONENT_NAME}} Component</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <!-- Main component container -->
+    <div class="{{CONTAINER_CLASS}}"></div>
+    
+    <!-- D3.js library (encapsulated dependency) -->
+    <script src="vendor/d3.v5.9.2.min.js"></script>
+    
+    <!-- Component code -->
+    <script src="render.js"></script>
+    <script src="main.js"></script>
+    
+    <script>
+        // Validate D3 is loaded
+        if (typeof d3 === 'undefined') {
+            console.error('[{{COMPONENT_NAME}}] D3.js library failed to load. Check path: vendor/d3.v5.9.2.min.js');
+        } else {
+            console.log('[{{COMPONENT_NAME}}] D3.js version:', d3.version, '(Expected: 5.9.2)');
+        }
+    </script>
+</body>
+</html>
