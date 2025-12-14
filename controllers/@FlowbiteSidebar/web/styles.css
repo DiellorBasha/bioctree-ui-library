@@ -1,0 +1,78 @@
+/* FlowbiteSidebar Component Styles */
+
+#sidebar-container {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+#flowbite-sidebar {
+    box-shadow: 2px 0 4px rgba(0, 0, 0, 0.1);
+}
+
+/* Smooth transitions for collapse/expand */
+#flowbite-sidebar {
+    will-change: width;
+}
+
+/* Dark theme adjustments */
+#flowbite-sidebar.dark {
+    background-color: #111827;
+}
+
+/* Menu item hover effects */
+#flowbite-sidebar a {
+    cursor: pointer;
+    user-select: none;
+}
+
+#flowbite-sidebar a:hover {
+    text-decoration: none;
+}
+
+/* Active item styling */
+#flowbite-sidebar a.active {
+    background-color: #3b82f6;
+    color: white;
+}
+
+/* Scrollbar styling for dark theme */
+#flowbite-sidebar::-webkit-scrollbar {
+    width: 8px;
+}
+
+#flowbite-sidebar::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+#flowbite-sidebar::-webkit-scrollbar-thumb {
+    background: #d1d5db;
+    border-radius: 4px;
+}
+
+#flowbite-sidebar::-webkit-scrollbar-thumb:hover {
+    background: #9ca3af;
+}
+
+/* Dark theme scrollbar */
+#flowbite-sidebar.dark::-webkit-scrollbar-thumb {
+    background: #4b5563;
+}
+
+#flowbite-sidebar.dark::-webkit-scrollbar-thumb:hover {
+    background: #6b7280;
+}
+
+/* Icon styling */
+#flowbite-sidebar svg {
+    flex-shrink: 0;
+}
+
+/* Responsive adjustments */
+@media (max-width: 640px) {
+    #flowbite-sidebar {
+        width: 100% !important;
+    }
+}

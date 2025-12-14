@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FlowbiteSidebar Component Test</title>
+    <link rel="stylesheet" href="../../../ui-build/src/flowbite-ui.css">
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #f3f4f6;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        h1 {
+            color: #1f2937;
+            margin-bottom: 30px;
+        }
+        
+        .test-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 30px;
+            margin-bottom: 40px;
+        }
+        
+        .test-case {
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+        
+        .test-header {
+            padding: 15px;
+            background: #f9fafb;
+            border-bottom: 1px solid #e5e7eb;
+            font-weight: 500;
+            color: #374151;
+        }
+        
+        .test-content {
+            height: 400px;
+            display: flex;
+            overflow: hidden;
+        }
+        
+        .console {
+            margin-top: 20px;
+            padding: 15px;
+            background: #1f2937;
+            color: #d1d5db;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            border-radius: 6px;
+            max-height: 300px;
+            overflow-y: auto;
+            line-height: 1.5;
+        }
+        
+        .console-line {
+            margin: 2px 0;
+        }
+        
+        .console-info {
+            color: #60a5fa;
+        }
+        
+        .console-success {
+            color: #34d399;
+        }
+        
+        .console-error {
+            color: #f87171;
+        }
+        
+        .controls {
+            padding: 15px;
+            border-top: 1px solid #e5e7eb;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        
+        button {
+            padding: 8px 12px;
+            background: #3b82f6;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: background 0.2s;
+        }
+        
+        button:hover {
+            background: #2563eb;
+        }
+        
+        button.secondary {
+            background: #6b7280;
+        }
+        
+        button.secondary:hover {
+            background: #4b5563;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>FlowbiteSidebar Component Test Suite</h1>
+        
+        <div class="test-grid">
+            <!-- Test 1: Light Theme -->
+            <div class="test-case">
+                <div class="test-header">Test 1: Light Theme</div>
+                <div class="test-content">
+                    <div id="test1"></div>
+                </div>
+                <div class="controls">
+                    <button onclick="updateItems('test1', ['Home', 'Dashboard', 'Settings'])">Update Items</button>
+                    <button onclick="toggleTheme('test1', 'light')" class="secondary">Collapse</button>
+                </div>
+            </div>
+            
+            <!-- Test 2: Dark Theme -->
+            <div class="test-case">
+                <div class="test-header">Test 2: Dark Theme</div>
+                <div class="test-content">
+                    <div id="test2"></div>
+                </div>
+                <div class="controls">
+                    <button onclick="selectItem('test2', 'Users')">Select "Users"</button>
+                    <button onclick="toggleTheme('test2', 'dark')" class="secondary">Collapse</button>
+                </div>
+            </div>
+            
+            <!-- Test 3: Many Items -->
+            <div class="test-case">
+                <div class="test-header">Test 3: Many Items</div>
+                <div class="test-content">
+                    <div id="test3"></div>
+                </div>
+                <div class="controls">
+                    <button onclick="clearItems('test3')">Clear Items</button>
+                    <button onclick="addMoreItems('test3')" class="secondary">Add Items</button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="console">
+            <div class="console-line console-info">[FlowbiteSidebar] Test suite initialized</div>
+            <div id="console-output"></div>
+        </div>
+    </div>
+    
+    <!-- Mock HTML Component -->
+    <script>
+        class MockHTMLComponent {
+            constructor(testId) {
+                this.testId = testId;
+                this.Data = {};
+                this.listeners = {};
+            }
+            
+            addEventListener(eventName, callback) {
+                if (!this.listeners[eventName]) {
+                    this.listeners[eventName] = [];
+                }
+                this.listeners[eventName].push(callback);
+            }
+            
+            dispatchEvent(event) {
+                logConsole(`[${this.testId}] ${event.type}: ${event.detail}`, 'info');
+                if (this.listeners[event.type]) {
+                    this.listeners[event.type].forEach(cb => cb(event));
+                }
+            }
+            
+            triggerDataChanged() {
+                const event = new Event('DataChanged');
+                this.dispatchEvent(event);
+                if (this.listeners['DataChanged']) {
+                    this.listeners['DataChanged'].forEach(cb => cb(event));
+                }
+            }
+        }
+        
+        const components = {
+            test1: new MockHTMLComponent('test1'),
+            test2: new MockHTMLComponent('test2'),
+            test3: new MockHTMLComponent('test3')
+        };
+        
+        function logConsole(message, type = 'info') {
+            const output = document.getElementById('console-output');
+            const line = document.createElement('div');
+            line.className = `console-line console-${type}`;
+            line.textContent = message;
+            output.appendChild(line);
+            output.parentElement.scrollTop = output.parentElement.scrollHeight;
+        }
+        
+        function renderSidebar(containerId, data) {
+            const container = document.getElementById(containerId);
+            if (!container) return;
+            
+            components[containerId].Data = data;
+            renderSidebar(data, components[containerId]);
+            logConsole(`[${containerId}] Sidebar rendered with ${data.items.length} items`, 'success');
+        }
+        
+        function updateItems(testId, newItems) {
+            components[testId].Data.items = newItems;
+            components[testId].triggerDataChanged();
+        }
+        
+        function selectItem(testId, item) {
+            components[testId].Data.selectedItem = item;
+            components[testId].triggerDataChanged();
+            logConsole(`[${testId}] Selected item: ${item}`, 'info');
+        }
+        
+        function toggleTheme(testId, theme) {
+            components[testId].Data.collapsed = !components[testId].Data.collapsed;
+            components[testId].triggerDataChanged();
+        }
+        
+        function clearItems(testId) {
+            components[testId].Data.items = [];
+            components[testId].triggerDataChanged();
+            logConsole(`[${testId}] Items cleared`, 'info');
+        }
+        
+        function addMoreItems(testId) {
+            const newItems = ['Item ' + (components[testId].Data.items.length + 1)];
+            components[testId].Data.items = [...components[testId].Data.items, ...newItems];
+            components[testId].triggerDataChanged();
+        }
+        
+        // Initialize test cases
+        window.addEventListener('load', function() {
+            logConsole('[FlowbiteSidebar] Loading test components...', 'info');
+            
+            components.test1.Data = {
+                items: ['Dashboard', 'Users', 'Products', 'Settings'],
+                collapsed: false,
+                selectedItem: 'Dashboard',
+                theme: 'light'
+            };
+            renderSidebar('test1', components.test1.Data);
+            
+            components.test2.Data = {
+                items: ['Admin', 'Users', 'Roles', 'Settings', 'Logs'],
+                collapsed: false,
+                selectedItem: 'Admin',
+                theme: 'dark'
+            };
+            renderSidebar('test2', components.test2.Data);
+            
+            components.test3.Data = {
+                items: ['Item 1', 'Item 2', 'Item 3', 'Item 4', 'Item 5', 'Item 6', 'Item 7'],
+                collapsed: false,
+                selectedItem: 'Item 1',
+                theme: 'light'
+            };
+            renderSidebar('test3', components.test3.Data);
+            
+            logConsole('[FlowbiteSidebar] All tests loaded', 'success');
+        });
+    </script>
+    
+    <script src="../../controllers/@FlowbiteSidebar/web/render.js"></script>
+</body>
+</html>

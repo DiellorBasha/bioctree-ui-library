@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FlowbiteButton Component Test</title>
+    <link rel="stylesheet" href="../../controllers/@FlowbiteButton/web/flowbite-ui.css">
+    <link rel="stylesheet" href="../../controllers/@FlowbiteButton/web/styles.css">
+    <style>
+        body {
+            background: #f9fafb;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            padding: 40px;
+        }
+        .test-container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            padding: 30px;
+        }
+        h1 {
+            color: #111827;
+            margin-top: 0;
+        }
+        .test-section {
+            margin-bottom: 30px;
+        }
+        .test-section h2 {
+            color: #374151;
+            font-size: 16px;
+            margin-bottom: 15px;
+            border-bottom: 1px solid #e5e7eb;
+            padding-bottom: 10px;
+        }
+        .button-group {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        .event-log {
+            background: #f3f4f6;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            padding: 12px;
+            max-height: 200px;
+            overflow-y: auto;
+            font-size: 12px;
+            font-family: 'Courier New', monospace;
+            color: #1f2937;
+        }
+        .event-log-entry {
+            padding: 4px 0;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        .event-log-entry:last-child {
+            border-bottom: none;
+        }
+        .status {
+            padding: 8px 12px;
+            background: #dbeafe;
+            border-left: 4px solid #3b82f6;
+            border-radius: 4px;
+            font-size: 13px;
+            color: #1e40af;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <h1>🧪 FlowbiteButton Component Test</h1>
+        
+        <div class="test-section">
+            <h2>Test 1: Button Variants</h2>
+            <div class="button-group">
+                <button type="button" id="btn-primary" class="text-white bg-blue-700 hover:bg-blue-800 focus:ring-4 focus:outline-none focus:ring-blue-300 font-medium rounded-lg text-sm px-5 py-2.5 text-center dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800">
+                    Primary
+                </button>
+                <button type="button" id="btn-success" class="text-white bg-green-700 hover:bg-green-800 focus:ring-4 focus:outline-none focus:ring-green-300 font-medium rounded-lg text-sm px-5 py-2.5 text-center dark:bg-green-600 dark:hover:bg-green-700 dark:focus:ring-green-800">
+                    Success
+                </button>
+                <button type="button" id="btn-danger" class="text-white bg-red-700 hover:bg-red-800 focus:ring-4 focus:outline-none focus:ring-red-300 font-medium rounded-lg text-sm px-5 py-2.5 text-center dark:bg-red-600 dark:hover:bg-red-700 dark:focus:ring-red-800">
+                    Danger
+                </button>
+                <button type="button" id="btn-warning" class="text-white bg-yellow-400 hover:bg-yellow-500 focus:ring-4 focus:outline-none focus:ring-yellow-300 font-medium rounded-lg text-sm px-5 py-2.5 text-center dark:focus:ring-yellow-900">
+                    Warning
+                </button>
+                <button type="button" id="btn-secondary" class="text-gray-900 bg-white border border-gray-300 hover:bg-gray-100 focus:ring-4 focus:outline-none focus:ring-gray-100 font-medium rounded-lg text-sm px-5 py-2.5 text-center dark:bg-gray-800 dark:text-white dark:border-gray-600 dark:hover:bg-gray-700 dark:hover:border-gray-600 dark:focus:ring-gray-700">
+                    Secondary
+                </button>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h2>Test 2: Interactive Component</h2>
+            <div id="component-container" style="background: #fafbfc; border: 2px dashed #cbd5e1; border-radius: 6px; padding: 20px; min-height: 100px;">
+                <!-- Component will be rendered here -->
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h2>Test 3: Mock MATLAB Communication</h2>
+            <div class="button-group">
+                <button id="btn-change-label" type="button" class="text-white bg-indigo-700 hover:bg-indigo-800 focus:ring-4 focus:outline-none focus:ring-indigo-300 font-medium rounded-lg text-sm px-5 py-2.5 text-center dark:bg-indigo-600 dark:hover:bg-indigo-700 dark:focus:ring-indigo-800">
+                    Change Label
+                </button>
+                <button id="btn-change-variant" type="button" class="text-white bg-purple-700 hover:bg-purple-800 focus:ring-4 focus:outline-none focus:ring-purple-300 font-medium rounded-lg text-sm px-5 py-2.5 text-center dark:bg-purple-600 dark:hover:bg-purple-700 dark:focus:ring-purple-800">
+                    Change Variant
+                </button>
+                <button id="btn-reset" type="button" class="text-white bg-slate-700 hover:bg-slate-800 focus:ring-4 focus:outline-none focus:ring-slate-300 font-medium rounded-lg text-sm px-5 py-2.5 text-center dark:bg-slate-600 dark:hover:bg-slate-700 dark:focus:ring-slate-800">
+                    Reset
+                </button>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h2>Event Log</h2>
+            <div class="event-log" id="event-log">
+                <div class="event-log-entry">[Ready] Waiting for events...</div>
+            </div>
+        </div>
+
+        <div class="status">
+            ✓ All tests ready. Click buttons to interact with component.
+        </div>
+    </div>
+
+    <!-- Mock HTMLComponent for testing -->
+    <script>
+        class MockHTMLComponent extends EventTarget {
+            constructor() {
+                super();
+                this.Data = {};
+            }
+            
+            dispatchEvent(event) {
+                console.log('[MockHTMLComponent] Event:', event.type, event.detail);
+                super.dispatchEvent(event);
+            }
+        }
+        
+        window.mockHTMLComponent = new MockHTMLComponent();
+    </script>
+
+    <script src="../../node_modules/flowbite/lib/index.js"></script>
+    <script src="../../controllers/@FlowbiteButton/web/render.js"></script>
+    <script>
+        // Initialize test logging
+        const eventLog = document.getElementById('event-log');
+        const variantVariants = ['primary', 'success', 'danger', 'warning', 'secondary'];
+        let componentData = {
+            label: 'Test Button',
+            variant: 'primary',
+            clickCount: 0
+        };
+        let variantIndex = 0;
+
+        function logEvent(message) {
+            const entry = document.createElement('div');
+            entry.className = 'event-log-entry';
+            const timestamp = new Date().toLocaleTimeString('en-US', { hour12: false });
+            entry.textContent = `[${timestamp}] ${message}`;
+            eventLog.insertBefore(entry, eventLog.firstChild);
+            
+            // Keep only last 20 entries
+            while (eventLog.children.length > 20) {
+                eventLog.removeChild(eventLog.lastChild);
+            }
+        }
+
+        // Initialize component
+        window.mockHTMLComponent.Data = componentData;
+        window.mockHTMLComponent.addEventListener('ButtonClicked', (event) => {
+            const data = JSON.parse(event.detail);
+            componentData.clickCount = data.clickCount;
+            logEvent(`Button clicked! Click count: ${data.clickCount}`);
+        });
+
+        // Render initial component
+        renderButton(componentData, window.mockHTMLComponent);
+        logEvent('Component initialized');
+
+        // Test button events
+        document.getElementById('btn-change-label').addEventListener('click', () => {
+            componentData.label = 'Updated Label - ' + new Date().getSeconds();
+            window.mockHTMLComponent.Data = componentData;
+            window.mockHTMLComponent.dispatchEvent(new Event('DataChanged'));
+            logEvent('Label updated: ' + componentData.label);
+        });
+
+        document.getElementById('btn-change-variant').addEventListener('click', () => {
+            variantIndex = (variantIndex + 1) % variantVariants.length;
+            componentData.variant = variantVariants[variantIndex];
+            window.mockHTMLComponent.Data = componentData;
+            window.mockHTMLComponent.dispatchEvent(new Event('DataChanged'));
+            logEvent('Variant changed to: ' + componentData.variant);
+        });
+
+        document.getElementById('btn-reset').addEventListener('click', () => {
+            componentData = {
+                label: 'Test Button',
+                variant: 'primary',
+                clickCount: 0
+            };
+            variantIndex = 0;
+            window.mockHTMLComponent.Data = componentData;
+            window.mockHTMLComponent.dispatchEvent(new Event('DataChanged'));
+            logEvent('Component reset to defaults');
+        });
+    </script>
+</body>
+</html>
