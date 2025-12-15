@@ -53,5 +53,101 @@ function renderCard(data, htmlComponent) {
     }
     
     // Create header
-    var header = document.createElement('div');\n    header.style.cssText = `\n        padding: 16px;\n        border-bottom: 1px solid #e5e7eb;\n        display: flex;\n        justify-content: space-between;\n        align-items: flex-start;\n        flex-shrink: 0;\n    `;\n    
-    var titleDiv = document.createElement('div');\n    titleDiv.style.flex = '1';\n    var title = document.createElement('h2');\n    title.textContent = data.title || 'Card Title';\n    title.style.cssText = 'margin: 0; font-size: 18px; font-weight: 600; color: #111827;';\n    \n    var subtitle = document.createElement('p');\n    subtitle.textContent = data.subtitle || '';\n    subtitle.style.cssText = 'margin: 4px 0 0 0; font-size: 14px; color: #6b7280;';\n    \n    titleDiv.appendChild(title);\n    if (data.subtitle) {\n        titleDiv.appendChild(subtitle);\n    }\n    header.appendChild(titleDiv);\n    \n    // Add badge if status provided\n    if (data.status) {\n        var badge = document.createElement('span');\n        var badgeStyle = badgeColors[data.statusVariant] || badgeColors['primary'];\n        badge.style.cssText = `\n            ${badgeStyle}\n            padding: 4px 12px;\n            border-radius: 12px;\n            font-size: 12px;\n            font-weight: 500;\n            white-space: nowrap;\n            margin-left: 12px;\n        `;\n        badge.textContent = data.status;\n        header.appendChild(badge);\n    }\n    \n    card.appendChild(header);\n    \n    // Create body\n    var body = document.createElement('div');\n    body.style.cssText = `\n        padding: 16px;\n        flex: 1;\n        overflow-y: auto;\n        font-size: 14px;\n        color: #374151;\n        line-height: 1.6;\n    `;\n    body.innerHTML = data.content || '<p>No content provided</p>';\n    card.appendChild(body);\n    \n    // Create footer if footerText provided\n    if (data.footerText) {\n        var footer = document.createElement('div');\n        footer.style.cssText = `\n            padding: 12px 16px;\n            background-color: #f9fafb;\n            border-top: 1px solid #e5e7eb;\n            font-size: 13px;\n            color: #6b7280;\n            flex-shrink: 0;\n        `;\n        footer.innerHTML = data.footerText;\n        card.appendChild(footer);\n    }\n    \n    // Add click event listener if card is interactive\n    if (data.interactive) {\n        card.addEventListener('click', function() {\n            var eventData = {\n                title: data.title,\n                timestamp: new Date().toISOString(),\n                clickCount: (data.clickCount || 0) + 1\n            };\n            \n            console.log('[FlowbiteCard] Card clicked:', eventData);\n            \n            try {\n                htmlComponent.dispatchEvent(new CustomEvent('CardClicked', {\n                    detail: JSON.stringify(eventData)\n                }));\n            } catch (e) {\n                console.error('[FlowbiteCard] Error dispatching click event:', e.message);\n            }\n        });\n    }\n    \n    container.appendChild(card);\n    \n    console.log('[FlowbiteCard] Card rendered:', data.title);\n}
+    var header = document.createElement('div');
+    header.style.cssText = `
+        padding: 16px;
+        border-bottom: 1px solid #e5e7eb;
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        flex-shrink: 0;
+    `;
+    
+    var titleDiv = document.createElement('div');
+    titleDiv.style.flex = '1';
+    var title = document.createElement('h2');
+    title.textContent = data.title || 'Card Title';
+    title.style.cssText = 'margin: 0; font-size: 18px; font-weight: 600; color: #111827;';
+    
+    var subtitle = document.createElement('p');
+    subtitle.textContent = data.subtitle || '';
+    subtitle.style.cssText = 'margin: 4px 0 0 0; font-size: 14px; color: #6b7280;';
+    
+    titleDiv.appendChild(title);
+    if (data.subtitle) {
+        titleDiv.appendChild(subtitle);
+    }
+    header.appendChild(titleDiv);
+    
+    // Add badge if status provided
+    if (data.status) {
+        var badge = document.createElement('span');
+        var badgeStyle = badgeColors[data.statusVariant] || badgeColors['primary'];
+        badge.style.cssText = `
+            ${badgeStyle}
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+            white-space: nowrap;
+            margin-left: 12px;
+        `;
+        badge.textContent = data.status;
+        header.appendChild(badge);
+    }
+    
+    card.appendChild(header);
+    
+    // Create body
+    var body = document.createElement('div');
+    body.style.cssText = `
+        padding: 16px;
+        flex: 1;
+        overflow-y: auto;
+        font-size: 14px;
+        color: #374151;
+        line-height: 1.6;
+    `;
+    body.innerHTML = data.content || '<p>No content provided</p>';
+    card.appendChild(body);
+    
+    // Create footer if footerText provided
+    if (data.footerText) {
+        var footer = document.createElement('div');
+        footer.style.cssText = `
+            padding: 12px 16px;
+            background-color: #f9fafb;
+            border-top: 1px solid #e5e7eb;
+            font-size: 13px;
+            color: #6b7280;
+            flex-shrink: 0;
+        `;
+        footer.innerHTML = data.footerText;
+        card.appendChild(footer);
+    }
+    
+    // Add click event listener if card is interactive
+    if (data.interactive) {
+        card.addEventListener('click', function() {
+            var eventData = {
+                title: data.title,
+                timestamp: new Date().toISOString(),
+                clickCount: (data.clickCount || 0) + 1
+            };
+            
+            console.log('[FlowbiteCard] Card clicked:', eventData);
+            
+            try {
+                htmlComponent.dispatchEvent(new CustomEvent('CardClicked', {
+                    detail: JSON.stringify(eventData)
+                }));
+            } catch (e) {
+                console.error('[FlowbiteCard] Error dispatching click event:', e.message);
+            }
+        });
+    }
+    
+    container.appendChild(card);
+    
+    console.log('[FlowbiteCard] Card rendered:', data.title);
+}

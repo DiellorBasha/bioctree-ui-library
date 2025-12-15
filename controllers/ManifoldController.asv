@@ -45,7 +45,7 @@ classdef ManifoldController < matlab.ui.componentcontainer.ComponentContainer
         SeedAnnotation images.ui.graphics.roi.Point
     end
 
-events
+    events
     SeedChanged
 end
 
@@ -219,15 +219,14 @@ end
 
             pos = double(pos);
 
-vidx = nearestNeighbor(comp.Triangulation, pos);
+            % Map to nearest vertex
+            vidx = nearestNeighbor(comp.Triangulation, pos);
 
-if comp.Seed ~= vidx
-    comp.Seed = vidx;
-    notify(comp, 'SeedChanged');
-end
+            % Update model state
+            comp.Seed = vidx;
 
-comp.SeedAnnotation = roi;
-
+            % Adopt this ROI as the canonical seed annotation
+            comp.SeedAnnotation = roi;
         end
     end
 end
