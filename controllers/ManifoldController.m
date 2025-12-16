@@ -248,12 +248,9 @@ end
                 F = comp.Manifold.Faces;
             else
                 % Called with (V, F) matrices
-                % Create or update Manifold object
-                if isempty(comp.Manifold)
-                    comp.Manifold = bct.Manifold();
-                end
-                comp.Manifold.Vertices = V;
-                comp.Manifold.Faces = F;
+                % Create Manifold from V, F
+                meshStruct = struct('Vertices', V, 'Faces', F);
+                comp.Manifold = bct.Manifold(meshStruct);
             end
 
             comp.Triangulation = triangulation(double(F), V);
@@ -276,12 +273,9 @@ end
 
             comp.Triangulation = tri;
             
-            % Update or create Manifold object
-            if isempty(comp.Manifold)
-                comp.Manifold = bct.Manifold();
-            end
-            comp.Manifold.Vertices = tri.Points;
-            comp.Manifold.Faces = tri.ConnectivityList;
+            % Create Manifold from triangulation
+            meshStruct = struct('Vertices', tri.Points, 'Faces', tri.ConnectivityList);
+            comp.Manifold = bct.Manifold(meshStruct);
 
             % Initialize seed
             comp.Seed = 1;
