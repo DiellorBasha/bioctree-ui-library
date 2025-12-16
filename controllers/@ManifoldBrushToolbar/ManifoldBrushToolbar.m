@@ -22,7 +22,7 @@ classdef ManifoldBrushToolbar < matlab.ui.componentcontainer.ComponentContainer
     properties (SetObservable)
         Context ManifoldBrushContext
         ActiveBrush char = 'spectral'  % Default brush ID
-        Orientation char {mustBeMember(Orientation, {'Vertical', 'Horizontal'})} = 'Vertical'
+        Orientation char {mustBeMember(Orientation, {'Vertical', 'Horizontal'})} = 'Horizontal'
     end
     
     properties (Access = public)
