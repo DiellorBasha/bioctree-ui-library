@@ -1,7 +1,8 @@
 classdef ManifoldBrushToolbar < matlab.ui.componentcontainer.ComponentContainer
     % ManifoldBrushToolbar
     %
-    % Vertical toolbar for selecting manifold brush tools.
+    % Configurable toolbar for selecting manifold brush tools.
+    % Supports both vertical and horizontal orientations.
     %
     % Responsibilities:
     %   - Display brush tool icons
@@ -13,10 +14,15 @@ classdef ManifoldBrushToolbar < matlab.ui.componentcontainer.ComponentContainer
     %   - Configure brush parameters
     %   - Evaluate brushes
     %   - Render the manifold
+    %
+    % Usage:
+    %   toolbar = ManifoldBrushToolbar(parent);
+    %   toolbar.Orientation = 'Horizontal';  % or 'Vertical' (default)
 
     properties (SetObservable)
         Context ManifoldBrushContext
         ActiveBrush char = 'spectral'  % Default brush ID
+        Orientation char {mustBeMember(Orientation, {'Vertical', 'Horizontal'})} = 'Vertical'
     end
     
     properties (Access = public)
@@ -58,6 +64,9 @@ classdef ManifoldBrushToolbar < matlab.ui.componentcontainer.ComponentContainer
             
             % Add listener for ActiveBrush changes
             addlistener(comp, 'ActiveBrush', 'PostSet', @(~,~)comp.update());
+            
+            % Add listener for Orientation changes
+            addlistener(comp, 'Orientation', 'PostSet', @(~,~)comp.update());
 
             % Initial render
             comp.update();
@@ -80,6 +89,7 @@ classdef ManifoldBrushToolbar < matlab.ui.componentcontainer.ComponentContainer
 
                 toolbarData = struct();
                 toolbarData.tools = tools;
+                toolbarData.orientation = lower(comp.Orientation);  % 'vertical' or 'horizontal'
 
                 comp.HTMLComponent.Data = toolbarData;
             end

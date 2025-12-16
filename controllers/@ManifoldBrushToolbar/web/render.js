@@ -2,6 +2,7 @@
  * Renders the toolbar with brush tools
  * @param {Object} data - Toolbar data from MATLAB
  * @param {Object} data.tools - Array of tool definitions [{id, icon, label, active}]
+ * @param {string} data.orientation - 'vertical' or 'horizontal'
  * @param {HTMLElement} htmlComponent - MATLAB HTML component
  */
 function renderToolbar(data, htmlComponent) {
@@ -24,10 +25,17 @@ function renderToolbar(data, htmlComponent) {
     var toolSpacing = 6;   // Reduced from 8
     var iconSize = 24;     // Reduced from 32
     var iconOffset = (toolSize - iconSize) / 2;
+    var orientation = data.orientation || 'vertical';
     
-    // Calculate SVG dimensions
-    var width = toolSize + 2 * toolSpacing;
-    var height = data.tools.length * (toolSize + toolSpacing) + toolSpacing;
+    // Calculate SVG dimensions based on orientation
+    var width, height;
+    if (orientation === 'horizontal') {
+        width = data.tools.length * (toolSize + toolSpacing) + toolSpacing;
+        height = toolSize + 2 * toolSpacing;
+    } else {
+        width = toolSize + 2 * toolSpacing;
+        height = data.tools.length * (toolSize + toolSpacing) + toolSpacing;
+    }
     
     // Clear previous SVG
     d3.select('#toolbar').remove();
@@ -48,8 +56,14 @@ function renderToolbar(data, htmlComponent) {
             return 'tool' + (d.active ? ' active' : '');
         })
         .attr('transform', function(d, i) {
-            var x = toolSpacing;
-            var y = toolSpacing + i * (toolSize + toolSpacing);
+            var x, y;
+            if (orientation === 'horizontal') {
+                x = toolSpacing + i * (toolSize + toolSpacing);
+                y = toolSpacing;
+            } else {
+                x = toolSpacing;
+                y = toolSpacing + i * (toolSize + toolSpacing);
+            }
             return 'translate(' + x + ',' + y + ')';
         })
         .on('click', handleToolClick);
