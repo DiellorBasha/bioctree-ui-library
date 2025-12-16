@@ -26,6 +26,7 @@ classdef EigenmodeController < matlab.ui.componentcontainer.ComponentContainer
         % Layout
         GridLayout
         ControlPanel
+        ControlPanelGrid
         TabGroup
 
         % --- Eigenmodes tab
@@ -33,10 +34,16 @@ classdef EigenmodeController < matlab.ui.componentcontainer.ComponentContainer
         ModeLabel
 
         % --- Kernel tab
-        KernelDropDown
-        KernelAxes
-        TauField          % Heat kernel parameter
-        ScaleField        % Mexican hat parameter
+        KernelModel_           % KernelModel instance
+        KernelFactoryUI_       % KernelFactoryUI instance
+        EigenmodeWeightViewer_ % EigenmodeWeightViewer instance
+        
+        % --- Signal tab
+        SignalModel_           % CompositeSignalModel instance
+        SignalFactoryUI_       % SignalFactoryUI instance
+        
+        % --- Colormap model
+        ColormapModel_  % ColormapModel for manifold visualization
 
 SeedListener   % listener handle
     end
@@ -52,7 +59,7 @@ SeedListener   % listener handle
             % Root grid
             comp.GridLayout = uigridlayout(comp);
             comp.GridLayout.RowHeight    = {'1x'};
-            comp.GridLayout.ColumnWidth = {'4x', '1x'};
+            comp.GridLayout.ColumnWidth = {'4x', '2x'};
 
             % --- Manifold viewer
             comp.Manifold = ManifoldController(comp.GridLayout);
@@ -65,8 +72,82 @@ SeedListener   % listener handle
             comp.ControlPanel.Layout.Row = 1;
             comp.ControlPanel.Layout.Column = 2;
 
-            % --- Tab group
-            comp.TabGroup = uitabgroup(comp.ControlPanel);
+            % --- Grid layout inside control panel for responsive layout
+            comp.ControlPanelGrid = uigridlayout(comp.ControlPanel);
+            comp.ControlPanelGrid.RowHeight = {'1x', '2x'}; % TabGroup top, Viewer TabGroup bottom
+            comp.ControlPanelGrid.ColumnWidth = {'1x'};
+
+            % --- Tab group (top)
+            comp.TabGroup = uitabgroup(comp.ControlPanelGrid);
+            comp.TabGroup.Layout.Row = 1;
+            comp.TabGroup.Layout.Column = 1;
+
+            % --- Viewer TabGroup (bottom)
+            viewerTabGroup = uitabgroup(comp.ControlPanelGrid);
+            viewerTabGroup.Layout.Row = 2;
+            viewerTabGroup.Layout.Column = 1;
+
+            % --- EigenmodeWeightViewer tab
+            tViewer = uitab(viewerTabGroup, 'Title', 'Eigenmode Weights');
+            
+            viewerGrid = uigridlayout(tViewer);
+            viewerGrid.RowHeight = {'1x'};
+            viewerGrid.ColumnWidth = {'1x'};
+            
+            comp.EigenmodeWeightViewer_ = EigenmodeWeightViewer(viewerGrid);
+            comp.EigenmodeWeightViewer_.Layout.Row = 1;
+            comp.EigenmodeWeightViewer_.Layout.Column = 1;
+
+            % --- Signals tab
+            tSignals = uitab(viewerTabGroup, 'Title', 'Signals');
+            
+            signalsGrid = uigridlayout(tSignals);
+            signalsGrid.RowHeight = {'1x'};
+            signalsGrid.ColumnWidth = {'1x'};
+            
+            % Initialize CompositeSignalModel with default Delta signal
+            comp.SignalModel_ = CompositeSignalModel();
+            deltaSig = DeltaSignal();
+            deltaSig.Weight = 1.0;
+            comp.SignalModel_.addSignal(deltaSig);
+            
+            % Create SignalFactoryUI in the Signals tab
+            comp.SignalFactoryUI_ = SignalFactoryUI(signalsGrid);
+            comp.SignalFactoryUI_.Layout.Row = 1;
+            comp.SignalFactoryUI_.Layout.Column = 1;
+            comp.SignalFactoryUI_.Model = comp.SignalModel_;
+            
+            % Add listener to update visualization when signals change
+            addlistener(comp.SignalModel_, 'Signals', 'PostSet', ...
+                @(~,~)comp.updateKernel());
+
+            %% =========================
+            %  Kernel tab
+            %  =========================
+
+            tKer = uitab(comp.TabGroup, 'Title', 'Kernel');
+
+            kerGrid = uigridlayout(tKer);
+            kerGrid.RowHeight    = {'1x'};
+            kerGrid.ColumnWidth = {'1x'};
+
+            % Initialize KernelModel with dummy axis (will be updated in setEigenmodes)
+            comp.KernelModel_ = KernelModel(linspace(0, 1, 100));
+            
+            % Create KernelFactoryUI in the Kernel tab
+            comp.KernelFactoryUI_ = KernelFactoryUI(kerGrid);
+            comp.KernelFactoryUI_.Layout.Row = 1;
+            comp.KernelFactoryUI_.Layout.Column = 1;
+            
+            % Link the model to the UI components
+            comp.KernelFactoryUI_.Model = comp.KernelModel_;
+            comp.EigenmodeWeightViewer_.Model = comp.KernelModel_;
+            
+            % Add listener to update visualization when kernel changes
+            addlistener(comp.KernelModel_, 'KernelType', 'PostSet', ...
+                @(~,~)comp.updateKernel());
+            addlistener(comp.KernelModel_, 'Parameters', 'PostSet', ...
+                @(~,~)comp.updateKernel());
 
             %% =========================
             %  Eigenmodes tab
@@ -79,7 +160,7 @@ SeedListener   % listener handle
             eigGrid.ColumnWidth = {'1x'};
 
             comp.ModeSlider = uislider(eigGrid, ...
-                'Orientation', 'vertical', ...
+                'Orientation', 'horizontal', ...
                 'Limits', [1 2], ...
                 'Value', 1, ...
                 'MajorTicks', [], ...
@@ -96,46 +177,31 @@ SeedListener   % listener handle
             comp.ModeLabel.Layout.Row = 2;
 
             %% =========================
-            %  Kernel tab
+            %  Colormap tab
             %  =========================
 
-            tKer = uitab(comp.TabGroup, 'Title', 'Kernel');
+            tCmap = uitab(comp.TabGroup, 'Title', 'Colormap');
 
-            kerGrid = uigridlayout(tKer);
-            kerGrid.RowHeight    = {'fit','fit','1x'};
-            kerGrid.ColumnWidth = {'1x','1x'};
-
-            % Kernel selector
-            comp.KernelDropDown = uidropdown(kerGrid, ...
-                'Items', {'Heat','Mexican Hat'}, ...
-                'ValueChangedFcn', @(~,~)comp.updateKernel());
-
-            comp.KernelDropDown.Layout.Row = 1;
-            comp.KernelDropDown.Layout.Column = [1 2];
-
-            % Heat kernel parameter
-            comp.TauField = uieditfield(kerGrid, 'numeric', ...
-                'Value', 0.01, ...
-                'Limits', [0 Inf], ...
-                'ValueChangedFcn', @(~,~)comp.updateKernel());
-
-            comp.TauField.Layout.Row = 2;
-            comp.TauField.Layout.Column = 1;
-
-            % Mexican hat parameter
-            comp.ScaleField = uieditfield(kerGrid, 'numeric', ...
-                'Value', 1.0, ...
-                'Limits', [eps Inf], ...
-                'ValueChangedFcn', @(~,~)comp.updateKernel());
-
-            comp.ScaleField.Layout.Row = 2;
-            comp.ScaleField.Layout.Column = 2;
-
-            % Kernel visualization
-            comp.KernelAxes = uiaxes(kerGrid);
-            comp.KernelAxes.Layout.Row = 3;
-            comp.KernelAxes.Layout.Column = [1 2];
-            comp.KernelAxes.Box = 'on';
+            cmapGrid = uigridlayout(tCmap);
+            cmapGrid.RowHeight    = {'1x'};
+            cmapGrid.ColumnWidth = {'1x'};
+            
+            % Initialize colormap model with defaults
+            comp.ColormapModel_ = ColormapModel();
+            comp.ColormapModel_.Name = 'redblue';
+            comp.ColormapModel_.Symmetric = true;
+            
+            % Create colormap UI
+            cmapUI = ColormapUI(cmapGrid);
+            cmapUI.Layout.Row = 1;
+            cmapUI.Layout.Column = 1;
+            cmapUI.Model = comp.ColormapModel_;
+            
+            % Add listeners to update current visualization when colormap changes
+            addlistener(comp.ColormapModel_, 'Name', 'PostSet', ...
+                @(~,~)comp.reapplyColormap());
+            addlistener(comp.ColormapModel_, 'Symmetric', 'PostSet', ...
+                @(~,~)comp.reapplyColormap());
 
 comp.SeedListener = addlistener( ...
     comp.Manifold, 'SeedChanged', ...
@@ -175,6 +241,11 @@ comp.SeedListener = addlistener( ...
                 comp.ModeSlider.Enable = 'on';
             end
 
+            % Update KernelModel with eigenvalue axis
+            if ~isempty(Lambda)
+                comp.KernelModel_.Axis = Lambda;
+            end
+
             comp.updateEigenmode();
             comp.updateKernel();
         end
@@ -196,9 +267,7 @@ comp.SeedListener = addlistener( ...
             phi = comp.Modes(:,k);
             phi = phi / max(abs(phi));
 
-            phiRGB = bct.show.x2rgb(phi, ...
-                'symmetric', true, ...
-                'colormap', 'redblue');
+            phiRGB = comp.ColormapModel_.apply(phi);
 
             comp.Manifold.Viewer.CurrentObject.Color = phiRGB;
 
@@ -227,48 +296,51 @@ end
                 return
             end
 
-            lambda = comp.Lambda;
-            U      = comp.Modes;
-
-            % --- Build kernel
-            switch comp.KernelDropDown.Value
-                case 'Heat'
-                    tau = comp.TauField.Value;
-                    g = exp(-tau * lambda);
-
-                    cla(comp.KernelAxes)
-                    fplot(comp.KernelAxes, ...
-                        @(x)exp(-tau*x), ...
-                        [0 max(lambda)]);
-                    title(comp.KernelAxes,'Heat kernel')
-
-                case 'Mexican Hat'
-                    s = comp.ScaleField.Value;
-                    g = (lambda .* exp(-s*lambda));
-
-                    cla(comp.KernelAxes)
-                    fplot(comp.KernelAxes, ...
-                        @(x)x.*exp(-s*x), ...
-                        [0 max(lambda)]);
-                    title(comp.KernelAxes,'Mexican hat kernel')
-            end
-
-            % --- Kronecker delta from seed
+            U = comp.Modes;
             N = size(U,1);
-            delta = zeros(N,1);
-            delta(comp.Manifold.Seed) = 1;
 
-            % --- Spectral projection + filtering
-            coeffs = U' * delta;
+            % --------------------------------------------------
+            % Build evaluation context
+            % --------------------------------------------------
+            context = struct();
+            context.Seed = comp.Manifold.Seed;
+            context.Manifold = comp.Manifold;
+
+            % --------------------------------------------------
+            % Evaluate composite signal
+            % --------------------------------------------------
+            s = comp.SignalModel_.evaluate(N, context);
+
+            % --------------------------------------------------
+            % Spectral filtering
+            % --------------------------------------------------
+            g = comp.KernelModel_.KernelFunction(comp.Lambda);
+
+            coeffs = U' * s;
             u = U * (g .* coeffs);
 
+            % --------------------------------------------------
+            % Normalize + colormap
+            % --------------------------------------------------
             u = u / max(abs(u));
-
-            uRGB = bct.show.x2rgb(u, ...
-                'symmetric', true, ...
-                'colormap', 'hot');
+            uRGB = comp.ColormapModel_.apply(u);
 
             comp.Manifold.Viewer.CurrentObject.Color = uRGB;
+        end
+        
+        function reapplyColormap(comp)
+            % Reapply colormap to current visualization
+            % Determine which tab is active and update accordingly
+            if isempty(comp.TabGroup.SelectedTab)
+                return
+            end
+            
+            switch comp.TabGroup.SelectedTab.Title
+                case 'Eigenmodes'
+                    comp.updateEigenmode();
+                case 'Kernel'
+                    comp.updateKernel();
+            end
         end
     end
 end

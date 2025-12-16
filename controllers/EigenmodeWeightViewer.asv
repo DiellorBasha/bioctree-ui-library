@@ -1,0 +1,212 @@
+classdef EigenmodeWeightViewer < matlab.ui.componentcontainer.ComponentContainer
+    % EigenmodeWeightViewer
+    % Visualizes how a spectral kernel weights Laplacian eigenvalues
+
+    % ============================================================
+    % Public API
+    % ============================================================
+    properties (SetObservable)
+        Model KernelModel
+    end
+
+    % ============================================================
+    % Visualization Options
+    % ============================================================
+    properties
+        AxisCoordinates char {mustBeMember(AxisCoordinates, ...
+            {'Eigenvalue','Wavenumber','Wavelength'})} = 'Eigenvalue'
+
+        AxisScaleMode char {mustBeMember(AxisScaleMode, ...
+            {'linear','log','power'})} = 'linear'
+
+        PowerExponent (1,1) double = 1.0
+
+        ShowRug (1,1) logical = true
+        FlipAxes (1,1) logical = false
+        ShowTitle (1,1) logical = false
+
+        SpatialUnit char = 'mm'   % display only
+    end
+
+    % ============================================================
+    % UI Components
+    % ============================================================
+    properties (Access = private, Transient, NonCopyable)
+
+        GridLayout matlab.ui.container.GridLayout
+        ControlLayout matlab.ui.container.GridLayout
+        UIAxes matlab.ui.control.UIAxes
+
+        AxisCoordDropDown matlab.ui.control.DropDown
+        AxisScaleDropDown matlab.ui.control.DropDown
+        FlipCheckBox matlab.ui.control.CheckBox
+    end
+
+    % ============================================================
+    % Listeners
+    % ============================================================
+    properties (Access = private)
+        ModelListeners event.listener = event.listener.empty
+    end
+
+    % ============================================================
+    % Lifecycle
+    % ============================================================
+    methods (Access = protected)
+
+        function setup(comp)
+
+            comp.GridLayout = uigridlayout(comp);
+            comp.GridLayout.RowHeight = {'fit','1x'};
+            comp.GridLayout.ColumnWidth = {'1x'};
+
+            % ---------------- Control bar ----------------
+
+
+comp.ControlLayout = uigridlayout(comp.GridLayout);
+comp.ControlLayout.Layout.Row = 1;
+
+% Fit columns for controls + flexible spacer
+comp.ControlLayout.ColumnWidth = {'fit','fit','fit','1x'};
+comp.ControlLayout.RowHeight   = {'fit'};
+
+% Padding is fine
+comp.ControlLayout.Padding = [6 4 6 4];
+
+
+            comp.AxisCoordDropDown = uidropdown(comp.ControlLayout);
+            comp.AxisCoordDropDown.Items = ...
+                {'Eigenvalue','Wavenumber','Wavelength'};
+            comp.AxisCoordDropDown.ValueChangedFcn = ...
+                @(~,~)comp.onControlsChanged();
+
+            comp.AxisScaleDropDown = uidropdown(comp.ControlLayout);
+            comp.AxisScaleDropDown.Items = {'linear','log','power'};
+            comp.AxisScaleDropDown.ValueChangedFcn = ...
+                @(~,~)comp.onControlsChanged();
+
+            comp.FlipCheckBox = uicheckbox(comp.ControlLayout);
+            comp.FlipCheckBox.Text = 'flip';
+            comp.FlipCheckBox.ValueChangedFcn = ...
+                @(~,~)comp.onControlsChanged();
+
+            % ---------------- Axes ----------------
+            comp.UIAxes = uiaxes(comp.GridLayout);
+            comp.UIAxes.Layout.Row = 2;
+
+            comp.UIAxes.Box = 'on';
+            comp.UIAxes.XGrid = 'off';
+            comp.UIAxes.YGrid = 'off';
+            comp.UIAxes.TickDir = 'out';
+        end
+
+        function update(comp)
+
+            if isempty(comp.Model) || isempty(comp.Model.Axis)
+                cla(comp.UIAxes);
+                return;
+            end
+
+            lambda = comp.Model.Axis(:);
+            w = comp.Model.KernelFunction(lambda);
+
+            % ---------------- Axis coordinates ----------------
+            switch comp.AxisCoordinates
+                case 'Eigenvalue'
+                    coord = lambda;
+                    coordLabel = '\lambda';
+                case 'Wavenumber'
+                    coord = sqrt(lambda);
+                    coordLabel = 'k (mm^{-1})';
+                case 'Wavelength'
+                    coord = 2*pi ./ sqrt(lambda);
+                    coordLabel = ['\ell (' comp.SpatialUnit ')'];
+            end
+
+            % ---------------- Axis scaling ----------------
+            switch comp.AxisScaleMode
+                case 'linear'
+                    c = coord;
+                case 'log'
+                    c = log10(coord);
+                case 'power'
+                    c = coord .^ comp.PowerExponent;
+            end
+
+            cla(comp.UIAxes);
+            hold(comp.UIAxes,'on');
+
+            if ~comp.FlipAxes
+                % Normal orientation
+                plot(comp.UIAxes, c, w, 'o-', 'LineWidth',1.5);
+
+                if comp.ShowRug
+                    plot(comp.UIAxes, c, zeros(size(c)), '|', ...
+                        'Color',[0.4 0.4 0.4]);
+                end
+
+                xlabel(comp.UIAxes, coordLabel);
+                ylabel(comp.UIAxes, 'g(\lambda)');
+                comp.UIAxes.YAxisLocation = 'left';
+
+            else
+                % Rotated 90° clockwise
+                plot(comp.UIAxes, w, c, 'o-', 'LineWidth',1.5);
+
+                if comp.ShowRug
+                    plot(comp.UIAxes, zeros(size(c)), c, '|', ...
+                        'Color',[0.4 0.4 0.4]);
+                end
+
+                xlabel(comp.UIAxes, 'g(\lambda)');
+                ylabel(comp.UIAxes, coordLabel);
+                comp.UIAxes.YAxisLocation = 'right';
+            end
+
+            hold(comp.UIAxes,'off');
+
+            axis(comp.UIAxes,'tight');
+            xlim(comp.UIAxes,'padded');
+            ylim(comp.UIAxes,'padded');
+
+            if ~comp.ShowTitle
+                title(comp.UIAxes,'');
+            end
+        end
+    end
+
+    % ============================================================
+    % Model binding
+    % ============================================================
+    methods
+        function set.Model(comp, model)
+
+            delete(comp.ModelListeners);
+            comp.ModelListeners = event.listener.empty;
+            comp.Model = model;
+
+            if isempty(model), return; end
+
+            props = {'KernelFunction','Parameters','KernelType','Axis'};
+            for i = 1:numel(props)
+                comp.ModelListeners(end+1) = ...
+                    addlistener(model, props{i}, 'PostSet', ...
+                        @(~,~)comp.update());
+            end
+
+            comp.update();
+        end
+    end
+
+    % ============================================================
+    % UI callbacks
+    % ============================================================
+    methods (Access = private)
+        function onControlsChanged(comp)
+            comp.AxisCoordinates = comp.AxisCoordDropDown.Value;
+            comp.AxisScaleMode   = comp.AxisScaleDropDown.Value;
+            comp.FlipAxes        = comp.FlipCheckBox.Value;
+            comp.update();
+        end
+    end
+end
