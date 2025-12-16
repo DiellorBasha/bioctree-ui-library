@@ -90,6 +90,8 @@ classdef ManifoldBrushToolbar < matlab.ui.componentcontainer.ComponentContainer
                 toolbarData = struct();
                 toolbarData.tools = tools;
                 toolbarData.orientation = lower(comp.Orientation);  % 'vertical' or 'horizontal'
+                
+                fprintf('[ManifoldBrushToolbar] Sending orientation: %s\n', toolbarData.orientation);
 
                 comp.HTMLComponent.Data = toolbarData;
             end

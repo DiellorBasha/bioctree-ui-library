@@ -43,8 +43,8 @@ function renderToolbar(data, htmlComponent) {
     
     console.log('[ManifoldBrushToolbar] SVG dimensions:', width, 'x', height);
     
-    // Clear previous SVG
-    d3.select('#toolbar').remove();
+    // Clear previous SVG within this container only
+    d3.select(container).select('#toolbar').remove();
     
     // Create SVG
     var svg = d3.select(container)
