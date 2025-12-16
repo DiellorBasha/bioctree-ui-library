@@ -250,7 +250,7 @@ end
                 % Called with (V, F) matrices
                 % Create or update Manifold object
                 if isempty(comp.Manifold)
-                    comp.Manifold = Manifold();
+                    comp.Manifold = bct.Manifold();
                 end
                 comp.Manifold.Vertices = V;
                 comp.Manifold.Faces = F;
@@ -278,7 +278,7 @@ end
             
             % Update or create Manifold object
             if isempty(comp.Manifold)
-                comp.Manifold = Manifold();
+                comp.Manifold = bct.Manifold();
             end
             comp.Manifold.Vertices = tri.Points;
             comp.Manifold.Faces = tri.ConnectivityList;
