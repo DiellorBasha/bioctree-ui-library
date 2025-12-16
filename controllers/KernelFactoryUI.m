@@ -32,7 +32,7 @@ classdef KernelFactoryUI < matlab.ui.componentcontainer.ComponentContainer
 
         function setup(comp)
 
-            comp.Position = [1 1 320 240];
+            %comp.Position = [1 1 320 240];
 
             % --------------------------------------------------
             % Grid layout (IDENTICAL to KernelShapeViewer)

@@ -19,17 +19,31 @@ classdef ManifoldController < matlab.ui.componentcontainer.ComponentContainer
     %  Public API
     %  =========================
 
-    properties
-        % Triangulation representing the manifold
-        Triangulation = []
-
+    properties (SetObservable)
         % Current seed vertex index (1-based)
         Seed (1,1) double = 1
+    end
+    
+    properties
+        % Bct Manifold object (contains geometry and spectral data)
+        Manifold
+        
+        % Manifold brush model
+        ManifoldBrushModel_
+        
+        % Triangulation representing the manifold (UI object)
+        Triangulation = []
+        
+        % Colormap model for brush visualization
+        ColormapModel ColormapModel
     end
 
     properties (SetAccess = protected)
         % Expose the viewer publicly (read-only)
         Viewer images.ui.graphics3d.Viewer3D
+        
+        % Manifold brush toolbar (read-only access)
+        BrushToolbar ManifoldBrushToolbar
     end
 
     %% =========================
@@ -38,16 +52,33 @@ classdef ManifoldController < matlab.ui.componentcontainer.ComponentContainer
 
     properties (Access = private, Transient, NonCopyable)
         GridLayout   matlab.ui.container.GridLayout
-        ViewerPanel matlab.ui.container.Panel
         SurfaceObj  images.ui.graphics3d.Surface
 
         % Canonical seed annotation
         SeedAnnotation images.ui.graphics.roi.Point
+        
+        % Context for brush components
+        BrushContext ManifoldBrushContext
     end
 
 events
     SeedChanged
 end
+
+    %% =========================
+    %  Constructor
+    %  =========================
+    
+    methods
+        function comp = ManifoldController(parent)
+            % Constructor - accepts parent container only
+            % Usage:
+            %   mc = ManifoldController(parent);
+            %   mc.initializeFromManifold(manifold);
+            
+            comp@matlab.ui.componentcontainer.ComponentContainer(parent);
+        end
+    end
 
     %% =========================
     %  Component lifecycle
@@ -56,22 +87,32 @@ end
     methods (Access = protected)
 
         function setup(comp)
-            % Root grid
+            fprintf('[ManifoldController] Setup started\n');
+            
+            % Root grid - two columns: toolbar (narrow) and viewer (wide)
             comp.GridLayout = uigridlayout(comp);
-            comp.GridLayout.RowHeight    = {'1x'};
-            comp.GridLayout.ColumnWidth = {'1x'};
-
-            % Panel to host viewer3d
-            comp.ViewerPanel = uipanel(comp.GridLayout);
-            comp.ViewerPanel.Layout.Row    = 1;
-            comp.ViewerPanel.Layout.Column = 1;
-
-            % Create viewer3d
+            comp.GridLayout.RowHeight = {'1x'};
+            comp.GridLayout.ColumnWidth = {60, '1x'};  % 60px toolbar, rest for viewer
+            
+            fprintf('[ManifoldController] Creating BrushContext\n');
+            comp.BrushContext = ManifoldBrushContext();
+            
+            fprintf('[ManifoldController] Creating BrushToolbar\n');
+            comp.BrushToolbar = ManifoldBrushToolbar(comp.GridLayout, 'Context', comp.BrushContext);
+            comp.BrushToolbar.Layout.Row = 1;
+            comp.BrushToolbar.Layout.Column = 1;
+            
+            fprintf('[ManifoldController] Creating viewer3d\n');
+            % Create viewer3d directly in grid layout
             comp.Viewer = viewer3d( ...
-                comp.ViewerPanel, ...
+                comp.GridLayout, ...
                 "BackgroundColor", [0 0 0], ...
                 "BackgroundGradient", "off", ...
                 "RenderingQuality", "high");
+            
+            % Set viewer layout position
+            comp.Viewer.Layout.Row = 1;
+            comp.Viewer.Layout.Column = 2;
 
             % Sensible default camera
             comp.Viewer.Mode.Default.CameraVector = [-1 -1 1];
@@ -82,6 +123,31 @@ end
 
             addlistener(comp.Viewer, 'AnnotationMoved', ...
                 @(~,evt)comp.onAnnotationEvent(evt));
+            
+            % Listen to BrushContext for brush changes (correct topology)
+            % Controller reacts to context changes, not individual brushes
+            addlistener(comp.BrushContext, 'BrushModel', 'PostSet', ...
+                @(~,~)comp.onBrushChanged());
+            
+            % Also update visualization when Seed changes
+            addlistener(comp, 'Seed', 'PostSet', ...
+                @(~,~)comp.onSeedChanged());
+            
+            % Initialize colormap model
+            if isempty(comp.ColormapModel)
+                comp.ColormapModel = ColormapModel();
+                comp.ColormapModel.Name = 'redblue';
+            end
+            
+            % Add listeners for colormap changes
+            addlistener(comp.ColormapModel, 'Name', 'PostSet', ...
+                @(~,~) comp.updateBrushVisualization());
+            addlistener(comp.ColormapModel, 'Symmetric', 'PostSet', ...
+                @(~,~) comp.updateBrushVisualization());
+            addlistener(comp.ColormapModel, 'Resolution', 'PostSet', ...
+                @(~,~) comp.updateBrushVisualization());
+            
+            fprintf('[ManifoldController] Setup complete\n');
         end
 
         function update(comp)
@@ -109,14 +175,53 @@ end
     %  =========================
 
     methods
+        
+        function initializeFromManifold(comp, manifold)
+            % Initialize controller with a Manifold object
+            % This is the recommended way to set up the controller after construction
+            %
+            % Usage:
+            %   mc = ManifoldController(parent);
+            %   mc.initializeFromManifold(fs6.Manifold);
+            
+            arguments
+                comp
+                manifold (1,1) bct.Manifold
+            end
+            
+            comp.Manifold = manifold;
+            comp.Triangulation = triangulation( ...
+                double(manifold.Faces), ...
+                manifold.Vertices);
+            
+            comp.Seed = 1;
+            
+            % Update brush context with manifold
+            fprintf('[ManifoldController] Updating BrushContext with Manifold\n');
+            comp.BrushContext.Manifold = manifold;
+            
+            % Explicitly trigger update and sync
+            comp.update();
+            comp.syncAnnotationToSeed();
+        end
 
         function setMeshFromVerticesFaces(comp, V, F)
             % Set manifold mesh from vertices and faces
+            % Can be called with Manifold object or (V, F) matrices
 
-            arguments
-                comp
-                V (:,3) double
-                F (:,3) {mustBeNumeric}
+            if nargin == 2 && isa(V, 'Manifold')
+                % Called with Manifold object
+                comp.Manifold = V;
+                V = comp.Manifold.Vertices;
+                F = comp.Manifold.Faces;
+            else
+                % Called with (V, F) matrices
+                % Create or update Manifold object
+                if isempty(comp.Manifold)
+                    comp.Manifold = Manifold();
+                end
+                comp.Manifold.Vertices = V;
+                comp.Manifold.Faces = F;
             end
 
             comp.Triangulation = triangulation(double(F), V);
@@ -138,6 +243,13 @@ end
             end
 
             comp.Triangulation = tri;
+            
+            % Update or create Manifold object
+            if isempty(comp.Manifold)
+                comp.Manifold = Manifold();
+            end
+            comp.Manifold.Vertices = tri.Points;
+            comp.Manifold.Faces = tri.ConnectivityList;
 
             % Initialize seed
             comp.Seed = 1;
@@ -145,6 +257,32 @@ end
             % Render and sync annotation
             comp.update();
             comp.syncAnnotationToSeed();
+        end
+        
+        function setEigenmodes(comp, lambda, modes)
+            % Set spectral basis on Manifold
+            if isempty(comp.Manifold)
+                error('ManifoldController:NoManifold', ...
+                    'Manifold must be set before setting eigenmodes');
+            end
+            
+            % Create Lambda object (dual to Manifold)
+            if isempty(comp.Manifold.dual)
+                comp.Manifold.dual = Lambda();
+            end
+            comp.Manifold.dual.lambda = lambda;
+            comp.Manifold.dual.U = modes;
+            
+            % Automatically refresh manifold brush to use new spectral basis
+            comp.refreshManifoldBrush();
+        end
+        
+        function refreshManifoldBrush(comp)
+            % Refresh manifold brush UI after eigenmodes are set
+            % This updates the KernelModel axis and re-initializes the brush
+            if ~isempty(comp.ManifoldBrushUI_)
+                comp.ManifoldBrushUI_.initialize();
+            end
         end
 
         function clearMesh(comp)
@@ -219,15 +357,78 @@ end
 
             pos = double(pos);
 
-vidx = nearestNeighbor(comp.Triangulation, pos);
+            vidx = nearestNeighbor(comp.Triangulation, pos);
 
-if comp.Seed ~= vidx
-    comp.Seed = vidx;
-    notify(comp, 'SeedChanged');
-end
+            if comp.Seed ~= vidx
+                comp.Seed = vidx;
+                notify(comp, 'SeedChanged');
+            end
 
-comp.SeedAnnotation = roi;
-
+            comp.SeedAnnotation = roi;
+        end
+        
+        function onSeedChanged(comp)
+            % React to seed changes - re-evaluate brush at new location
+            fprintf('[ManifoldController] Seed changed to: %d\n', comp.Seed);
+            
+            % Update brush context seed
+            comp.BrushContext.Seed = comp.Seed;
+            
+            % Re-evaluate and visualize brush at new seed
+            comp.updateBrushVisualization();
+        end
+        
+        function onBrushChanged(comp)
+            % React to brush changes in the context
+            % Controller doesn't care which brush - just responds uniformly
+            
+            fprintf('[ManifoldController] Brush changed in context\n');
+            
+            % Update visualization when brush changes
+            if ~isempty(comp.BrushContext.BrushModel) && ...
+               ~isempty(comp.BrushContext.BrushModel.Brush)
+                fprintf('[ManifoldController] New brush active: %s\n', ...
+                    class(comp.BrushContext.BrushModel.Brush));
+                
+                % Update brush visualization on the surface
+                comp.updateBrushVisualization();
+            end
+        end
+        
+        function updateBrushVisualization(comp)
+            % Update surface coloring based on current brush evaluation
+            
+            if isempty(comp.SurfaceObj) || ~isvalid(comp.SurfaceObj)
+                return;
+            end
+            
+            if isempty(comp.BrushContext.Field)
+                fprintf('[ManifoldController] No brush field to visualize\n');
+                return;
+            end
+            
+            % Get evaluated field from context
+            w = comp.BrushContext.Field;
+            
+            % Normalize weights
+            if max(abs(w)) > 0
+                w = w ./ max(abs(w));
+            end
+            
+            % Apply colormap
+            RGB = comp.applyColormap(w);
+            
+            % Update surface color
+            comp.SurfaceObj.Color = RGB;
+            
+            fprintf('[ManifoldController] Brush visualization updated\n');
+        end
+        
+        function RGB = applyColormap(comp, w)
+            % Apply colormap to normalized weights using ColormapModel
+            
+            % Use ColormapModel.apply() for direct conversion
+            RGB = comp.ColormapModel.apply(w);
         end
     end
 end
