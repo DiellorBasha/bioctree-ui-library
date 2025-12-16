@@ -6,18 +6,19 @@
  * @param {HTMLElement} htmlComponent - MATLAB HTML component
  */
 function renderToolbar(data, htmlComponent) {
-    // console.log('[ManifoldBrushToolbar] renderToolbar called');
-    // console.log('[ManifoldBrushToolbar] Toolbar data:', data);
-    // console.log('[ManifoldBrushToolbar] htmlComponent:', htmlComponent);
+    console.log('[ManifoldBrushToolbar] renderToolbar called');
+    console.log('[ManifoldBrushToolbar] Toolbar data:', data);
+    console.log('[ManifoldBrushToolbar] Number of tools:', data ? data.tools ? data.tools.length : 0 : 0);
+    console.log('[ManifoldBrushToolbar] Orientation:', data ? data.orientation : 'undefined');
     
     if (!data || !data.tools || !Array.isArray(data.tools)) {
-        // console.warn('[ManifoldBrushToolbar] Invalid data structure');
+        console.warn('[ManifoldBrushToolbar] Invalid data structure');
         return;
     }
     
     var container = document.getElementById('toolbar-container');
     if (!container) {
-        // console.error('[ManifoldBrushToolbar] Container not found');
+        console.error('[ManifoldBrushToolbar] Container not found');
         return;
     }
     
@@ -26,6 +27,9 @@ function renderToolbar(data, htmlComponent) {
     var iconSize = 24;     // Reduced from 32
     var iconOffset = (toolSize - iconSize) / 2;
     var orientation = data.orientation || 'vertical';
+    
+    console.log('[ManifoldBrushToolbar] Orientation:', orientation);
+    console.log('[ManifoldBrushToolbar] Tool count:', data.tools.length);
     
     // Calculate SVG dimensions based on orientation
     var width, height;
@@ -36,6 +40,8 @@ function renderToolbar(data, htmlComponent) {
         width = toolSize + 2 * toolSpacing;
         height = data.tools.length * (toolSize + toolSpacing) + toolSpacing;
     }
+    
+    console.log('[ManifoldBrushToolbar] SVG dimensions:', width, 'x', height);
     
     // Clear previous SVG
     d3.select('#toolbar').remove();
