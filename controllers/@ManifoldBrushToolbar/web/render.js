@@ -46,12 +46,15 @@ function renderToolbar(data, htmlComponent) {
     // Clear previous SVG within this container only
     d3.select(container).select('#toolbar').remove();
     
-    // Create SVG
+    // Create SVG with viewBox and explicit pixel dimensions
+    // This prevents MATLAB uihtml from rescaling the toolbar
     var svg = d3.select(container)
         .append('svg')
         .attr('id', 'toolbar')
-        .attr('width', width)
-        .attr('height', height);
+        .attr('viewBox', '0 0 ' + width + ' ' + height)
+        .attr('preserveAspectRatio', 'xMinYMin meet')
+        .style('width', width + 'px')
+        .style('height', height + 'px');
     
     // Create tool groups
     var tools = svg.selectAll('.tool')

@@ -9,10 +9,11 @@ body {
   width: 100%;
   height: 100%;
   overflow: visible;  /* Ensure content isn't clipped */
+  display: block;  /* Explicit block layout, no flex */
 }
 
 #toolbar {
-  display: block;
+  display: block;  /* Explicit block layout for SVG */
 }
 
 .tool rect {
