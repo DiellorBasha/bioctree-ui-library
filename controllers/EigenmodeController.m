@@ -66,9 +66,6 @@ SeedListener   % listener handle
             comp.Manifold.Layout.Row = 1;
             comp.Manifold.Layout.Column = 1;
             
-            % Hide brush toolbar - EigenmodeController controls visualization
-            comp.Manifold.setBrushToolbarVisible(false);
-            
             % Set initial visualization mode
             comp.Manifold.VisualizationMode = 'Eigenmode';
 
