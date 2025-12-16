@@ -93,17 +93,18 @@ end
         function setup(comp)
             fprintf('[ManifoldController] Setup started\n');
             
-            % Root grid - two columns: toolbar (narrow) and viewer (wide)
+            % Root grid - two rows: viewer (top) and toolbar (bottom)
             comp.GridLayout = uigridlayout(comp);
-            comp.GridLayout.RowHeight = {'1x'};
-            comp.GridLayout.ColumnWidth = {60, '1x'};  % 60px toolbar, rest for viewer
+            comp.GridLayout.RowHeight = {'1x', 60};  % Viewer expands, 60px toolbar
+            comp.GridLayout.ColumnWidth = {'1x'};
             
             fprintf('[ManifoldController] Creating BrushContext\n');
             comp.BrushContext = ManifoldBrushContext();
             
             fprintf('[ManifoldController] Creating BrushToolbar\n');
             comp.BrushToolbar = ManifoldBrushToolbar(comp.GridLayout, 'Context', comp.BrushContext);
-            comp.BrushToolbar.Layout.Row = 1;
+            comp.BrushToolbar.Orientation = 'Horizontal';
+            comp.BrushToolbar.Layout.Row = 2;
             comp.BrushToolbar.Layout.Column = 1;
             
             fprintf('[ManifoldController] Creating viewer3d\n');
@@ -116,10 +117,14 @@ end
             
             % Set viewer layout position
             comp.Viewer.Layout.Row = 1;
-            comp.Viewer.Layout.Column = 2;
+            comp.Viewer.Layout.Column = 1;
 
             % Sensible default camera
             comp.Viewer.Mode.Default.CameraVector = [-1 -1 1];
+            
+            % Set scale bar and spatial units
+            comp.Viewer.ScaleBar = 'on';
+            comp.Viewer.SpatialUnits = 'mm';
 
             % Listen for interactive annotation events
             addlistener(comp.Viewer, 'AnnotationAdded', ...
