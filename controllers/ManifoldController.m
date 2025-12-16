@@ -22,6 +22,10 @@ classdef ManifoldController < matlab.ui.componentcontainer.ComponentContainer
     properties (SetObservable)
         % Current seed vertex index (1-based)
         Seed (1,1) double = 1
+        
+        % Visualization mode controlling surface colors
+        VisualizationMode char {mustBeMember(VisualizationMode, ...
+            {'Brush','Eigenmode','Signal','Custom'})} = 'Custom'
     end
     
     properties
@@ -175,6 +179,34 @@ end
     %  =========================
 
     methods
+        
+        function setSurfaceColor(comp, RGB)
+            % Set the color of the surface mesh
+            % RGB: Nx3 matrix of RGB values [0,1]
+            % Automatically sets VisualizationMode to 'Custom'
+            
+            if isempty(comp.SurfaceObj) || ~isvalid(comp.SurfaceObj)
+                warning('ManifoldController:NoSurface', 'No surface object to color');
+                return;
+            end
+            
+            comp.SurfaceObj.Color = RGB;
+        end
+        
+        function setBrushToolbarVisible(comp, visible)
+            % Show or hide the brush toolbar
+            % visible: logical true/false
+            
+            if isempty(comp.BrushToolbar) || ~isvalid(comp.BrushToolbar)
+                return;
+            end
+            
+            if visible
+                comp.BrushToolbar.Visible = 'on';
+            else
+                comp.BrushToolbar.Visible = 'off';
+            end
+        end
         
         function initializeFromManifold(comp, manifold)
             % Initialize controller with a Manifold object
@@ -397,8 +429,14 @@ end
         
         function updateBrushVisualization(comp)
             % Update surface coloring based on current brush evaluation
+            % Only applies colors when VisualizationMode is 'Brush'
             
             if isempty(comp.SurfaceObj) || ~isvalid(comp.SurfaceObj)
+                return;
+            end
+            
+            % Only update if in Brush mode
+            if ~strcmp(comp.VisualizationMode, 'Brush')
                 return;
             end
             

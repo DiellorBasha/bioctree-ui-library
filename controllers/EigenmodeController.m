@@ -65,6 +65,12 @@ SeedListener   % listener handle
             comp.Manifold = ManifoldController(comp.GridLayout);
             comp.Manifold.Layout.Row = 1;
             comp.Manifold.Layout.Column = 1;
+            
+            % Hide brush toolbar - EigenmodeController controls visualization
+            comp.Manifold.setBrushToolbarVisible(false);
+            
+            % Set initial visualization mode
+            comp.Manifold.VisualizationMode = 'Eigenmode';
 
             % --- Control panel
             comp.ControlPanel = uipanel(comp.GridLayout, ...
@@ -81,6 +87,10 @@ SeedListener   % listener handle
             comp.TabGroup = uitabgroup(comp.ControlPanelGrid);
             comp.TabGroup.Layout.Row = 1;
             comp.TabGroup.Layout.Column = 1;
+            
+            % Listen to tab changes to update visualization mode
+            addlistener(comp.TabGroup, 'SelectionChanged', ...
+                @(~,~)comp.onTabChanged());
 
             % --- Viewer TabGroup (bottom)
             viewerTabGroup = uitabgroup(comp.ControlPanelGrid);
@@ -220,7 +230,25 @@ comp.SeedListener = addlistener( ...
 
     methods
 
+        function initializeFromManifold(comp, manifold)
+            % Initialize with a Manifold object
+            % This is the recommended initialization method
+            %
+            % Usage:
+            %   ec = EigenmodeController(parent);
+            %   ec.initializeFromManifold(manifold);
+            
+            arguments
+                comp
+                manifold (1,1) bct.Manifold
+            end
+            
+            comp.Manifold.initializeFromManifold(manifold);
+        end
+
         function setMeshFromVerticesFaces(comp, V, F)
+            % Set mesh from vertices and faces
+            % Legacy method - consider using initializeFromManifold instead
             comp.Manifold.setMeshFromVerticesFaces(V, F);
         end
 
@@ -269,7 +297,7 @@ comp.SeedListener = addlistener( ...
 
             phiRGB = comp.ColormapModel_.apply(phi);
 
-            comp.Manifold.Viewer.CurrentObject.Color = phiRGB;
+            comp.Manifold.setSurfaceColor(phiRGB);
 
             if ~isempty(comp.Lambda)
                 comp.ModeLabel.Text = sprintf( ...
@@ -289,6 +317,25 @@ function onSeedChanged(comp)
         comp.updateKernel();
     end
 end
+
+        function onTabChanged(comp)
+            % Update visualization mode when tabs change
+            if isempty(comp.TabGroup.SelectedTab)
+                return
+            end
+            
+            switch comp.TabGroup.SelectedTab.Title
+                case 'Eigenmodes'
+                    comp.Manifold.VisualizationMode = 'Eigenmode';
+                    comp.updateEigenmode();
+                case 'Kernel'
+                    comp.Manifold.VisualizationMode = 'Signal';
+                    comp.updateKernel();
+                case {'Colormap'}
+                    % Colormap tab doesn't change mode, just updates current viz
+                    comp.reapplyColormap();
+            end
+        end
 
         function updateKernel(comp)
 
@@ -325,7 +372,7 @@ end
             u = u / max(abs(u));
             uRGB = comp.ColormapModel_.apply(u);
 
-            comp.Manifold.Viewer.CurrentObject.Color = uRGB;
+            comp.Manifold.setSurfaceColor(uRGB);
         end
         
         function reapplyColormap(comp)
