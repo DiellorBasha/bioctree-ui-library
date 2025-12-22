@@ -1,7 +1,31 @@
-import { initViewer, loadGLB } from "./render.js";
+import { initViewer, loadGLB, toggleWireframe, toggleNormals, toggleTangents } from "./render.js";
 
 function getParam(name) {
   return new URLSearchParams(window.location.search).get(name);
+}
+
+function setupToggleControls() {
+  const btnWireframe = document.getElementById("btnWireframe");
+  const btnNormals = document.getElementById("btnNormals");
+  const btnTangents = document.getElementById("btnTangents");
+
+  if (btnWireframe) {
+    btnWireframe.addEventListener("click", () => {
+      toggleWireframe();
+    });
+  }
+
+  if (btnNormals) {
+    btnNormals.addEventListener("click", () => {
+      toggleNormals();
+    });
+  }
+  
+  if (btnTangents) {
+    btnTangents.addEventListener("click", () => {
+      toggleTangents();
+    });
+  }
 }
 
 async function main() {
@@ -10,6 +34,9 @@ async function main() {
 
   // Default to fsaverage.glb, allow override via ?asset=...
   const assetUrl = getParam("asset") ?? "./assets/fsaverage.glb";
+
+  // Setup toggle control event listeners
+  setupToggleControls();
 
   // Initialize viewer (this also loads glbUrl by default)
   initViewer({ canvasEl: canvas, hudEl: hud, glbUrl: assetUrl });

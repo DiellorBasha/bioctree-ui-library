@@ -1,6 +1,8 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import { VertexNormalsHelper } from "three/addons/helpers/VertexNormalsHelper.js";
+import { VertexTangentsHelper } from "three/addons/helpers/VertexTangentsHelper.js";
 
 let renderer, scene, camera, controls;
 let canvas, hud;
@@ -10,7 +12,9 @@ let loadedScene = null; // gltf.scene reference
 
 // Debug visuals
 let targetMarker = null; // follows controls.target (rotation anchor)
-let bboxHelper = null;   // Box3Helper around loaded model
+let wireframeHelper = null; // WireframeGeometry visualization
+let normalsHelper = null; // VertexNormalsHelper visualization
+let tangentsHelper = null; // VertexTangentsHelper visualization
 
 // Axes gizmo overlay (bottom-left)
 let gizmoScene = null;
@@ -23,17 +27,31 @@ let lightRig = null;
 // Defaults
 const BASE_COLOR_HEX = 0x999999; // [0.6 0.6 0.6]
 const DEFAULT_GLB_URL = "./assets/fsaverage.glb";
+const LOADER_COMPONENT_PATH = "./loaders/spinning/spinning.html";
 
 // Loader control functions
 function setLoaderProgress(pct) {
-  const bar = document.getElementById("loaderBar");
-  const txt = document.getElementById("loaderPct");
-  if (bar) bar.style.width = `${pct}%`;
-  if (txt) txt.textContent = String(Math.round(pct));
+  // Progress tracking available for future use
+  // Currently plasma2 loader doesn't display percentage
+}
+
+async function initLoader() {
+  const loaderHost = document.getElementById("loaderHost");
+  if (!loaderHost) return;
+
+  try {
+    const response = await fetch(LOADER_COMPONENT_PATH);
+    const html = await response.text();
+    loaderHost.innerHTML = html;
+  } catch (err) {
+    console.error("Failed to load loader component:", err);
+    // Fallback: simple loading text
+    loaderHost.innerHTML = '<div style="color: #eaeaea; font-size: 14px;">Loading...</div>';
+  }
 }
 
 function hideLoader() {
-  const el = document.getElementById("loader");
+  const el = document.getElementById("loaderOverlay");
   if (!el) return;
   el.classList.add("hidden");
   // Remove after fade transition
@@ -44,8 +62,42 @@ function hideLoader() {
 const PIVOT_MODE = "MeshCenter";
 
 // Debug toggles (initial state)
-let SHOW_BBOX = false;     // start hidden; user can show via API
 const SHOW_TARGET = false; // hide pivot marker
+let SHOW_WIREFRAME = false; // wireframe overlay
+let SHOW_NORMALS = false; // vertex normals vectors (red)
+let SHOW_TANGENTS = false; // vertex tangents vectors (cyan)
+
+/* -------------------- UV synthesis helper -------------------- */
+
+function addSphericalUVs(geometry) {
+  const pos = geometry.attributes.position;
+  if (!pos) return;
+
+  // Use bounding sphere center for stable parameterization
+  geometry.computeBoundingSphere();
+  const c = geometry.boundingSphere?.center ?? new THREE.Vector3();
+
+  const uvs = new Float32Array(pos.count * 2);
+  const v = new THREE.Vector3();
+
+  for (let i = 0; i < pos.count; i++) {
+    v.fromBufferAttribute(pos, i).sub(c).normalize();
+
+    // longitude/latitude on unit sphere
+    const lon = Math.atan2(v.z, v.x);  // [-pi, pi]
+    const lat = Math.asin(v.y);        // [-pi/2, pi/2]
+
+    const u = (lon + Math.PI) / (2 * Math.PI);
+    const t = (lat + Math.PI / 2) / Math.PI;
+
+    uvs[2 * i + 0] = u;
+    uvs[2 * i + 1] = t;
+  }
+
+  geometry.setAttribute("uv", new THREE.BufferAttribute(uvs, 2));
+  geometry.attributes.uv.needsUpdate = true;
+  console.log('[Manifold3] Synthesized spherical UVs for tangent computation');
+}
 
 export function initViewer({ canvasEl, hudEl, glbUrl = DEFAULT_GLB_URL }) {
   canvas = canvasEl;
@@ -106,6 +158,20 @@ export function initViewer({ canvasEl, hudEl, glbUrl = DEFAULT_GLB_URL }) {
     updateAxesGizmo();
     updateTargetMarker();
 
+    // Update normals helpers if active
+    if (normalsHelper && normalsHelper.children) {
+      normalsHelper.children.forEach(helper => {
+        if (helper.update) helper.update();
+      });
+    }
+    
+    // Update tangents helpers if active
+    if (tangentsHelper && tangentsHelper.children) {
+      tangentsHelper.children.forEach(helper => {
+        if (helper.update) helper.update();
+      });
+    }
+
     // Main render
     renderer.setViewport(0, 0, canvas.clientWidth, canvas.clientHeight);
     renderer.setScissorTest(false);
@@ -118,9 +184,12 @@ export function initViewer({ canvasEl, hudEl, glbUrl = DEFAULT_GLB_URL }) {
   resize();
   setHud(`Loading: ${glbUrl}`);
 
-  loadGLB(glbUrl).catch((err) => {
-    console.error(err);
-    setHud(String(err));
+  // Initialize loader component, then load GLB
+  initLoader().then(() => {
+    loadGLB(glbUrl).catch((err) => {
+      console.error(err);
+      setHud(String(err));
+    });
   });
 }
 
@@ -153,17 +222,54 @@ export async function loadGLB(url) {
     if (!obj.isMesh) return;
 
     const geom = obj.geometry;
+    
+    // Ensure normals exist
     if (geom && !geom.attributes.normal) {
       geom.computeVertexNormals();
       if (geom.attributes.normal) geom.attributes.normal.needsUpdate = true;
     }
+    
+    // Ensure UVs exist (synthesize spherical UVs if missing for tangent visualization)
+    if (geom && !geom.attributes.uv) {
+      addSphericalUVs(geom);
+    }
+    
+    // Compute tangents if we have all required attributes
+    if (geom && !geom.attributes.tangent) {
+      const hasRequiredAttrs = geom.index && geom.attributes.position && geom.attributes.normal && geom.attributes.uv;
+      if (hasRequiredAttrs) {
+        try {
+          geom.computeTangents();
+          console.log('[Manifold3] Computed tangents for mesh');
+        } catch (err) {
+          console.warn('[Manifold3] Failed to compute tangents:', err.message);
+        }
+      } else {
+        console.warn('[Manifold3] Cannot compute tangents: missing required attributes (index/position/normal/uv)');
+      }
+    }
 
-    obj.material = new THREE.MeshStandardMaterial({
+    // Create and cache both base and wireframe materials
+    const baseMat = new THREE.MeshStandardMaterial({
       color: BASE_COLOR_HEX,
       roughness: 0.85,
       metalness: 0.0,
-      side: THREE.DoubleSide
+      side: THREE.DoubleSide,
     });
+
+    const wireMat = new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      wireframe: true,
+      opacity: 0.25,
+      transparent: true,
+      side: THREE.DoubleSide,
+    });
+
+    obj.userData.baseMaterial = baseMat;
+    obj.userData.wireMaterial = wireMat;
+
+    // Start in base mode
+    obj.material = baseMat;
   });
 
   modelRoot.add(loadedScene);
@@ -181,27 +287,59 @@ export async function loadGLB(url) {
       // Add mesh to scene after animation delay
       scene.add(modelRoot);
       
-      // BBox visibility obeys toggle state
-      syncBoundingBoxVisibility();
+      // Wireframe visibility obeys toggle state
+      syncWireframeVisibility();
+      
+      // Normals visibility obeys toggle state
+      syncNormalsVisibility();
+      
+      // Tangents visibility obeys toggle state
+      syncTangentsVisibility();
       
       updateAxesGizmo();
       updateTargetMarker();
       
       hideLoader();
-    }, 800); // 800ms delay to show loading animation
+    }, 1500); // 1500ms delay to show loading animation
   });
 }
 
 /* -------------------- Public debug API -------------------- */
 
-export function setShowBoundingBox(show) {
-  SHOW_BBOX = !!show;
-  syncBoundingBoxVisibility();
+export function setShowWireframe(show) {
+  SHOW_WIREFRAME = !!show;
+  syncWireframeVisibility();
+  updateToggleButtonStates();
 }
 
-export function toggleBoundingBox() {
-  SHOW_BBOX = !SHOW_BBOX;
-  syncBoundingBoxVisibility();
+export function toggleWireframe() {
+  SHOW_WIREFRAME = !SHOW_WIREFRAME;
+  syncWireframeVisibility();
+  updateToggleButtonStates();
+}
+
+export function setShowNormals(show) {
+  SHOW_NORMALS = !!show;
+  syncNormalsVisibility();
+  updateToggleButtonStates();
+}
+
+export function toggleNormals() {
+  SHOW_NORMALS = !SHOW_NORMALS;
+  syncNormalsVisibility();
+  updateToggleButtonStates();
+}
+
+export function setShowTangents(show) {
+  SHOW_TANGENTS = !!show;
+  syncTangentsVisibility();
+  updateToggleButtonStates();
+}
+
+export function toggleTangents() {
+  SHOW_TANGENTS = !SHOW_TANGENTS;
+  syncTangentsVisibility();
+  updateToggleButtonStates();
 }
 
 /* -------------------- Pivot control -------------------- */
@@ -229,28 +367,243 @@ function setPivotMode(mode) {
   updateTargetMarker();
 }
 
-/* -------------------- Bounding box -------------------- */
+/* -------------------- Wireframe -------------------- */
 
-function syncBoundingBoxVisibility() {
-  if (!SHOW_BBOX) {
-    if (bboxHelper) {
-      scene.remove(bboxHelper);
-      bboxHelper = null;
+function syncWireframeVisibility() {
+  if (!loadedScene) return;
+
+  loadedScene.traverse((obj) => {
+    if (!obj.isMesh) return;
+
+    const baseMat = obj.userData.baseMaterial;
+    const wireMat = obj.userData.wireMaterial;
+
+    if (!baseMat || !wireMat) return;
+
+    // Swap materials based on wireframe state
+    obj.material = SHOW_WIREFRAME ? wireMat : baseMat;
+    obj.material.needsUpdate = true;
+  });
+
+  // Remove old helper-based wireframe if it exists
+  if (wireframeHelper) {
+    scene.remove(wireframeHelper);
+    wireframeHelper = null;
+  }
+}
+
+/* -------------------- Normals -------------------- */
+
+function syncNormalsVisibility() {
+  if (!SHOW_NORMALS) {
+    if (normalsHelper) {
+      scene.remove(normalsHelper);
+      normalsHelper = null;
+    }
+    
+    // Restore mesh visibility if both normals and tangents are off
+    if (!SHOW_TANGENTS) {
+      restoreMeshVisibility();
     }
     return;
   }
 
-  if (!modelRoot) return;
+  if (!loadedScene) return;
 
-  const box = new THREE.Box3().setFromObject(modelRoot);
-
-  if (!bboxHelper) {
-    bboxHelper = new THREE.Box3Helper(box, 0x00ffff);
-    scene.add(bboxHelper);
-  } else {
-    bboxHelper.box.copy(box);
-    bboxHelper.updateMatrixWorld(true);
+  // Remove existing helper if present
+  if (normalsHelper) {
+    scene.remove(normalsHelper);
+    normalsHelper = null;
   }
+
+  // Hide mesh only if wireframe is NOT active
+  if (loadedScene && !SHOW_WIREFRAME) {
+    hideMeshMaterials();
+  }
+
+  // Create vertex normals helpers for all meshes
+  let meshCount = 0;
+  
+  loadedScene.traverse((obj) => {
+    if (!obj.isMesh) return;
+    meshCount++;
+
+    const downsampleFactor = 1; // Testing: no downsampling (was 100)
+    const geometry = obj.geometry;
+    const positions = geometry.attributes.position;
+    const normals = geometry.attributes.normal;
+    
+    console.log(`[Manifold3] Normals - Mesh ${meshCount}: positions=${!!positions}, normals=${!!normals}`);
+    
+    if (!positions || !normals) return;
+
+    // Create downsampled geometry
+    const downsampledPositions = [];
+    const downsampledNormals = [];
+    
+    for (let i = 0; i < positions.count; i += downsampleFactor) {
+      downsampledPositions.push(
+        positions.getX(i),
+        positions.getY(i),
+        positions.getZ(i)
+      );
+      downsampledNormals.push(
+        normals.getX(i),
+        normals.getY(i),
+        normals.getZ(i)
+      );
+    }
+    
+    // Create sparse geometry for helpers
+    const sparseGeometry = new THREE.BufferGeometry();
+    sparseGeometry.setAttribute('position', new THREE.Float32BufferAttribute(downsampledPositions, 3));
+    sparseGeometry.setAttribute('normal', new THREE.Float32BufferAttribute(downsampledNormals, 3));
+    
+    // Create temporary mesh for the helper
+    const tempMesh = new THREE.Mesh(sparseGeometry, obj.material);
+    tempMesh.position.copy(obj.position);
+    tempMesh.rotation.copy(obj.rotation);
+    tempMesh.scale.copy(obj.scale);
+    tempMesh.matrixWorld.copy(obj.matrixWorld);
+    
+    // Create normals helper (red)
+    const helper = new VertexNormalsHelper(tempMesh, 2, 0xff0000);
+    
+    if (!normalsHelper) {
+      normalsHelper = new THREE.Group();
+      scene.add(normalsHelper);
+    }
+    
+    normalsHelper.add(helper);
+  });
+  
+  console.log(`[Manifold3] Normals: ${meshCount} meshes`);
+}
+
+/* -------------------- Tangents -------------------- */
+
+function syncTangentsVisibility() {
+  if (!SHOW_TANGENTS) {
+    if (tangentsHelper) {
+      scene.remove(tangentsHelper);
+      tangentsHelper = null;
+    }
+    
+    // Restore mesh visibility if both normals and tangents are off
+    if (!SHOW_NORMALS) {
+      restoreMeshVisibility();
+    }
+    return;
+  }
+
+  if (!loadedScene) return;
+
+  // Remove existing helper if present
+  if (tangentsHelper) {
+    scene.remove(tangentsHelper);
+    tangentsHelper = null;
+  }
+
+  // Hide mesh only if wireframe is NOT active
+  if (loadedScene && !SHOW_WIREFRAME) {
+    hideMeshMaterials();
+  }
+
+  // Create vertex tangents helpers for all meshes
+  let meshCount = 0;
+  let tangentCount = 0;
+  
+  loadedScene.traverse((obj) => {
+    if (!obj.isMesh) return;
+    meshCount++;
+
+    const downsampleFactor = 1; // Testing: no downsampling (was 100)
+    const geometry = obj.geometry;
+    const positions = geometry.attributes.position;
+    const normals = geometry.attributes.normal;
+    const tangents = geometry.attributes.tangent;
+    const uvs = geometry.attributes.uv;
+    
+    console.log(`[Manifold3] Tangents - Mesh ${meshCount}: positions=${!!positions}, normals=${!!normals}, tangents=${!!tangents}, uvs=${!!uvs}`);
+    
+    if (!positions || !normals || !tangents) return;
+
+    tangentCount++;
+
+    // Create downsampled geometry
+    const downsampledPositions = [];
+    const downsampledNormals = [];
+    const downsampledTangents = [];
+    
+    for (let i = 0; i < positions.count; i += downsampleFactor) {
+      downsampledPositions.push(
+        positions.getX(i),
+        positions.getY(i),
+        positions.getZ(i)
+      );
+      downsampledNormals.push(
+        normals.getX(i),
+        normals.getY(i),
+        normals.getZ(i)
+      );
+      downsampledTangents.push(
+        tangents.getX(i),
+        tangents.getY(i),
+        tangents.getZ(i),
+        tangents.getW(i)
+      );
+    }
+    
+    // Create sparse geometry for helpers
+    const sparseGeometry = new THREE.BufferGeometry();
+    sparseGeometry.setAttribute('position', new THREE.Float32BufferAttribute(downsampledPositions, 3));
+    sparseGeometry.setAttribute('normal', new THREE.Float32BufferAttribute(downsampledNormals, 3));
+    sparseGeometry.setAttribute('tangent', new THREE.Float32BufferAttribute(downsampledTangents, 4));
+    
+    // Create temporary mesh for the helper
+    const tempMesh = new THREE.Mesh(sparseGeometry, obj.material);
+    tempMesh.position.copy(obj.position);
+    tempMesh.rotation.copy(obj.rotation);
+    tempMesh.scale.copy(obj.scale);
+    tempMesh.matrixWorld.copy(obj.matrixWorld);
+    
+    // Create tangents helper (cyan)
+    const helper = new VertexTangentsHelper(tempMesh, 2, 0x00ffff);
+    
+    if (!tangentsHelper) {
+      tangentsHelper = new THREE.Group();
+      scene.add(tangentsHelper);
+    }
+    
+    tangentsHelper.add(helper);
+    console.log(`[Manifold3] Created tangents helper for mesh ${meshCount}`);
+  });
+  
+  console.log(`[Manifold3] Tangents: ${meshCount} meshes, ${tangentCount} with tangents`);
+}
+
+// Helper functions to reduce duplication
+function hideMeshMaterials() {
+  if (!loadedScene) return;
+  loadedScene.traverse((obj) => {
+    if (obj.isMesh && obj.material) {
+      obj.material.visible = false;
+    }
+  });
+}
+
+function restoreMeshVisibility() {
+  if (!loadedScene) return;
+  loadedScene.traverse((obj) => {
+    if (!obj.isMesh) return;
+    const baseMat = obj.userData.baseMaterial;
+    const wireMat = obj.userData.wireMaterial;
+    if (!baseMat || !wireMat) return;
+    
+    // Restore appropriate material based on wireframe toggle
+    obj.material = SHOW_WIREFRAME ? wireMat : baseMat;
+    obj.material.visible = true;
+  });
 }
 
 /* -------------------- Axes gizmo (bottom-left) -------------------- */
@@ -364,10 +717,22 @@ function installDefaultLights() {
 /* --------------------------- helpers --------------------------- */
 
 function clearModel() {
-  // Remove bbox if present
-  if (bboxHelper) {
-    scene.remove(bboxHelper);
-    bboxHelper = null;
+  // Remove wireframe if present
+  if (wireframeHelper) {
+    scene.remove(wireframeHelper);
+    wireframeHelper = null;
+  }
+
+  // Remove normals if present
+  if (normalsHelper) {
+    scene.remove(normalsHelper);
+    normalsHelper = null;
+  }
+  
+  // Remove tangents if present
+  if (tangentsHelper) {
+    scene.remove(tangentsHelper);
+    tangentsHelper = null;
   }
 
   if (modelRoot) {
@@ -404,5 +769,22 @@ function resize() {
 }
 
 function setHud(text) {
-  if (hud) hud.textContent = text;
+  const hudText = document.getElementById("hudText");
+  if (hudText) hudText.textContent = text;
+}
+
+function updateToggleButtonStates() {
+  const btnWireframe = document.getElementById("btnWireframe");
+  const btnNormals = document.getElementById("btnNormals");
+  const btnTangents = document.getElementById("btnTangents");
+
+  if (btnWireframe) {
+    btnWireframe.classList.toggle("active", SHOW_WIREFRAME);
+  }
+  if (btnNormals) {
+    btnNormals.classList.toggle("active", SHOW_NORMALS);
+  }
+  if (btnTangents) {
+    btnTangents.classList.toggle("active", SHOW_TANGENTS);
+  }
 }
