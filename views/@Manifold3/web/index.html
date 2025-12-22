@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Three Mesh Viewer</title>
+  <link rel="stylesheet" href="./styles.css" />
+
+  <!-- Import map: match official three.js pattern (three + three/addons) -->
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "./vendor/three/build/three.module.js",
+      "three/addons/": "./vendor/three/examples/jsm/"
+    }
+  }
+  </script>
+</head>
+
+<body>
+  <div id="root">
+    <canvas id="canvas"></canvas>
+    <div id="hud"></div>
+  </div>
+
+  <script type="module" src="./main.js"></script>
+</body>
+</html>
