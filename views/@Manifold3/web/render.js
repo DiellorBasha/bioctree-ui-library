@@ -24,19 +24,35 @@ let lightRig = null;
 const BASE_COLOR_HEX = 0x999999; // [0.6 0.6 0.6]
 const DEFAULT_GLB_URL = "./assets/fsaverage.glb";
 
+// Loader control functions
+function setLoaderProgress(pct) {
+  const bar = document.getElementById("loaderBar");
+  const txt = document.getElementById("loaderPct");
+  if (bar) bar.style.width = `${pct}%`;
+  if (txt) txt.textContent = String(Math.round(pct));
+}
+
+function hideLoader() {
+  const el = document.getElementById("loader");
+  if (!el) return;
+  el.classList.add("hidden");
+  // Remove after fade transition
+  setTimeout(() => el.remove(), 400);
+}
+
 // Pivot mode: recommended "MeshCenter" for FreeSurfer surfaces
 const PIVOT_MODE = "MeshCenter";
 
 // Debug toggles (initial state)
 let SHOW_BBOX = false;     // start hidden; user can show via API
-const SHOW_TARGET = true;  // keep pivot marker on
+const SHOW_TARGET = false; // hide pivot marker
 
 export function initViewer({ canvasEl, hudEl, glbUrl = DEFAULT_GLB_URL }) {
   canvas = canvasEl;
   hud = hudEl;
 
   scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x111111);
+  scene.background = new THREE.Color(0x000000);
 
   camera = new THREE.PerspectiveCamera(45, 1, 0.01, 1e7);
   camera.up.set(0, 1, 0);
@@ -110,10 +126,23 @@ export function initViewer({ canvasEl, hudEl, glbUrl = DEFAULT_GLB_URL }) {
 
 export async function loadGLB(url) {
   clearModel();
+  setLoaderProgress(0);
 
-  const loader = new GLTFLoader();
+  const manager = new THREE.LoadingManager();
+  manager.onError = (u) => console.error("Loading error:", u);
+
+  const loader = new GLTFLoader(manager);
   const gltf = await new Promise((resolve, reject) => {
-    loader.load(url, resolve, undefined, reject);
+    loader.load(
+      url,
+      resolve,
+      (xhr) => {
+        if (xhr && xhr.total) {
+          setLoaderProgress((xhr.loaded / xhr.total) * 100);
+        }
+      },
+      reject
+    );
   });
 
   modelRoot = new THREE.Group();
@@ -138,18 +167,29 @@ export async function loadGLB(url) {
   });
 
   modelRoot.add(loadedScene);
-  scene.add(modelRoot);
 
-  // Set orbit pivot (recommended)
+  // Set orbit pivot (recommended) - calculate before adding to scene
   setPivotMode(PIVOT_MODE);
-
-  // BBox visibility obeys toggle state
-  syncBoundingBoxVisibility();
 
   setHud(`Loaded: ${url}`);
 
-  updateAxesGizmo();
-  updateTargetMarker();
+  // Hide loader after a frame and a short delay to let animation run
+  // Add mesh to scene only after loader animation completes
+  requestAnimationFrame(() => {
+    setLoaderProgress(100);
+    setTimeout(() => {
+      // Add mesh to scene after animation delay
+      scene.add(modelRoot);
+      
+      // BBox visibility obeys toggle state
+      syncBoundingBoxVisibility();
+      
+      updateAxesGizmo();
+      updateTargetMarker();
+      
+      hideLoader();
+    }, 800); // 800ms delay to show loading animation
+  });
 }
 
 /* -------------------- Public debug API -------------------- */
@@ -217,7 +257,7 @@ function syncBoundingBoxVisibility() {
 
 function initAxesGizmo() {
   gizmoScene = new THREE.Scene();
-  gizmoScene.background = null; // transparent overlay
+  gizmoScene.background = new THREE.Color(0x000000); // match main scene
 
   gizmoAxes = new THREE.AxesHelper(1);
   gizmoScene.add(gizmoAxes);
@@ -292,7 +332,7 @@ function installDefaultLights() {
   camera.add(lightRig);
 
   // Base lift: keep low to preserve contrast
-  const ambient = new THREE.AmbientLight(0xffffff, 0.25);
+  const ambient = new THREE.AmbientLight(0xffffff, 0.2);
   lightRig.add(ambient);
 
   // Key (front-right in view space)
@@ -305,7 +345,7 @@ function installDefaultLights() {
   lightRig.add(key.target);
 
   // Fill (front-left in view space)
-  const fill = new THREE.DirectionalLight(0xffffff, 0.85);
+  const fill = new THREE.DirectionalLight(0xffffff, 0.95);
   fill.position.set(-1.0, 0.4, 1.0);
   lightRig.add(fill);
 
@@ -313,7 +353,7 @@ function installDefaultLights() {
   lightRig.add(fill.target);
 
   // Rim/back light (adds edge definition without creating a permanent “dark side”)
-  const rim = new THREE.DirectionalLight(0xffffff, 0.35);
+  const rim = new THREE.DirectionalLight(0xffffff, 0.45);
   rim.position.set(0.0, 1.0, -1.2);
   lightRig.add(rim);
 

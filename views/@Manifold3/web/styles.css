@@ -8,7 +8,7 @@ html, body {
   position: relative;
   width: 100%;
   height: 100%;
-  background: #111;
+  background: #000;
 }
 
 #canvas {
@@ -28,4 +28,45 @@ html, body {
   border-radius: 6px;
   pointer-events: none;
   white-space: pre;
+}
+
+/* Loading overlay */
+.loader {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.85);
+  opacity: 1;
+  transition: opacity 250ms ease;
+  pointer-events: all;
+  z-index: 100;
+}
+
+.loader.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.loaderCard {
+  width: 260px;
+  padding: 16px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.9);
+  color: #eaeaea;
+  font-family: system-ui, 'Segoe UI', Roboto, Arial, sans-serif;
+  text-align: center;
+}
+
+.loader-svg {
+  height: 100px;
+  width: 100px;
+  margin: 0 auto 16px auto;
+  display: block;
+}
+
+.progressText {
+  font-size: 14px;
+  margin-top: 4px;
 }
