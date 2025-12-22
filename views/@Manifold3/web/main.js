@@ -1,4 +1,4 @@
-import { initViewer, loadGLB, toggleWireframe, toggleNormals, toggleTangents } from "./render.js";
+import { initViewer, loadGLB, toggleWireframe, toggleNormals, toggleTangents, setPickMode } from "./render.js";
 
 function getParam(name) {
   return new URLSearchParams(window.location.search).get(name);
@@ -28,6 +28,36 @@ function setupToggleControls() {
   }
 }
 
+function setupPickerControls() {
+  // button group behavior
+  const buttons = [
+    ["btnPickVertex", "vertex"],
+    ["btnPickEdge", "edge"],
+    ["btnPickTri", "triangle"]
+  ];
+
+  function setActive(id) {
+    for (const [btnId] of buttons) {
+      const btn = document.getElementById(btnId);
+      if (btn) btn.classList.toggle("active", btnId === id);
+    }
+  }
+
+  for (const [btnId, mode] of buttons) {
+    const btn = document.getElementById(btnId);
+    if (btn) {
+      btn.addEventListener("click", () => {
+        setPickMode(mode);
+        setActive(btnId);
+      });
+    }
+  }
+
+  // default to triangle
+  setPickMode("triangle");
+  setActive("btnPickTri");
+}
+
 async function main() {
   const canvas = document.getElementById("canvas");
   const hud = document.getElementById("hud");
@@ -37,6 +67,9 @@ async function main() {
 
   // Setup toggle control event listeners
   setupToggleControls();
+  
+  // Setup picker control event listeners
+  setupPickerControls();
 
   // Initialize viewer (this also loads glbUrl by default)
   initViewer({ canvasEl: canvas, hudEl: hud, glbUrl: assetUrl });

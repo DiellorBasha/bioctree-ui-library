@@ -24,6 +24,22 @@ let gizmoAxes = null;
 // View-locked light rig (attached to camera)
 let lightRig = null;
 
+// Picking state
+let pickMode = "triangle";      // "vertex" | "edge" | "triangle"
+let pickingEnabled = true;
+const raycaster = new THREE.Raycaster();
+const pointerNDC = new THREE.Vector2();
+let pickables = [];             // meshes to raycast against
+
+// Selection FX overlays
+let triFX = null;     // THREE.Mesh
+let edgeFX = null;    // THREE.Line
+let vertexFX = null;  // THREE.Mesh
+
+let pulseEnabled = false;
+let pulseStart = 0;        // seconds
+const pulseDuration = 0.6; // seconds
+
 // Defaults
 const BASE_COLOR_HEX = 0x999999; // [0.6 0.6 0.6]
 const DEFAULT_GLB_URL = "./assets/fsaverage.glb";
@@ -152,11 +168,18 @@ export function initViewer({ canvasEl, hudEl, glbUrl = DEFAULT_GLB_URL }) {
     updateAxesGizmo();
     updateTargetMarker();
   });
+  
+  // Picking: pointer event handler
+  renderer.domElement.addEventListener("pointerdown", onPointerDown);
 
   renderer.setAnimationLoop(() => {
     controls.update();
     updateAxesGizmo();
     updateTargetMarker();
+    
+    // Update selection pulse animation
+    const t = performance.now() / 1000;
+    updateSelectionPulse(t);
 
     // Update normals helpers if active
     if (normalsHelper && normalsHelper.children) {
@@ -299,6 +322,9 @@ export async function loadGLB(url) {
       updateAxesGizmo();
       updateTargetMarker();
       
+      // Collect meshes for picking
+      collectPickables();
+      
       hideLoader();
     }, 1500); // 1500ms delay to show loading animation
   });
@@ -340,6 +366,331 @@ export function toggleTangents() {
   SHOW_TANGENTS = !SHOW_TANGENTS;
   syncTangentsVisibility();
   updateToggleButtonStates();
+}
+
+/* -------------------- Picking API -------------------- */
+
+export function setPickMode(mode) {
+  if (mode === "vertex" || mode === "edge" || mode === "triangle") {
+    pickMode = mode;
+  } else {
+    pickMode = "triangle";
+  }
+  console.log(`[Manifold3] Pick mode: ${pickMode}`);
+}
+
+export function setPickingEnabled(v) {
+  pickingEnabled = !!v;
+}
+
+function collectPickables() {
+  pickables = [];
+  if (!loadedScene) return;
+
+  loadedScene.traverse((obj) => {
+    if (!obj.isMesh) return;
+
+    // Recommended for cortex picking from inside/outside
+    if (obj.material && obj.userData.baseMaterial) {
+      obj.userData.baseMaterial.side = THREE.DoubleSide;
+    }
+    if (obj.material && obj.userData.wireMaterial) {
+      obj.userData.wireMaterial.side = THREE.DoubleSide;
+    }
+
+    pickables.push(obj);
+  });
+  
+  console.log(`[Manifold3] Collected ${pickables.length} pickable meshes`);
+}
+
+function updatePointerNDC(evt) {
+  const rect = renderer.domElement.getBoundingClientRect();
+  const x = ((evt.clientX - rect.left) / rect.width) * 2 - 1;
+  const y = -(((evt.clientY - rect.top) / rect.height) * 2 - 1);
+  pointerNDC.set(x, y);
+}
+
+function onPointerDown(evt) {
+  if (!pickingEnabled || pickables.length === 0) return;
+
+  updatePointerNDC(evt);
+  raycaster.setFromCamera(pointerNDC, camera);
+
+  const hits = raycaster.intersectObjects(pickables, true);
+  if (!hits.length) return;
+
+  const hit = hits[0];
+
+  if (pickMode === "triangle") {
+    pickTriangle(hit);
+  } else if (pickMode === "vertex") {
+    pickVertex(hit);
+  } else if (pickMode === "edge") {
+    pickEdge(hit);
+  }
+}
+
+function getTriVertexIndices(geom, faceIndex) {
+  const base = faceIndex * 3;
+  if (geom.index) {
+    return {
+      i0: geom.index.getX(base + 0),
+      i1: geom.index.getX(base + 1),
+      i2: geom.index.getX(base + 2)
+    };
+  }
+  return { i0: base + 0, i1: base + 1, i2: base + 2 };
+}
+
+function pickTriangle(hit) {
+  const mesh = hit.object;
+  const geom = mesh.geometry;
+  if (!geom || hit.faceIndex == null) return;
+
+  const tri = getTriVertexIndices(geom, hit.faceIndex);
+  
+  // Show visual feedback
+  showTriangleHighlight(hit);
+  const t = performance.now() / 1000;
+  startPulse(t);
+  
+  // TODO: emit to MATLAB later
+  console.log("[pick triangle]", tri, "faceIndex:", hit.faceIndex, "mesh:", mesh.name || "unnamed");
+}
+
+function pickVertex(hit) {
+  const mesh = hit.object;
+  const geom = mesh.geometry;
+  if (!geom || hit.faceIndex == null) return;
+
+  const tri = getTriVertexIndices(geom, hit.faceIndex);
+  const pos = geom.attributes.position;
+
+  const v0 = new THREE.Vector3().fromBufferAttribute(pos, tri.i0);
+  const v1 = new THREE.Vector3().fromBufferAttribute(pos, tri.i1);
+  const v2 = new THREE.Vector3().fromBufferAttribute(pos, tri.i2);
+
+  // Compare in world space
+  mesh.localToWorld(v0);
+  mesh.localToWorld(v1);
+  mesh.localToWorld(v2);
+
+  const p = hit.point;
+  const d0 = v0.distanceToSquared(p);
+  const d1 = v1.distanceToSquared(p);
+  const d2 = v2.distanceToSquared(p);
+
+  let chosen = { idx: tri.i0, pt: v0, d: d0 };
+  if (d1 < chosen.d) chosen = { idx: tri.i1, pt: v1, d: d1 };
+  if (d2 < chosen.d) chosen = { idx: tri.i2, pt: v2, d: d2 };
+
+  // Show visual feedback
+  showVertexHighlight(hit);
+  const t = performance.now() / 1000;
+  startPulse(t);
+
+  // TODO: emit to MATLAB later
+  console.log("[pick vertex]", chosen.idx, "position:", chosen.pt.toArray());
+}
+
+function pickEdge(hit) {
+  const mesh = hit.object;
+  const geom = mesh.geometry;
+  if (!geom || hit.faceIndex == null) return;
+
+  const tri = getTriVertexIndices(geom, hit.faceIndex);
+  const pos = geom.attributes.position;
+
+  // Get triangle vertices in world space
+  const a = new THREE.Vector3().fromBufferAttribute(pos, tri.i0); mesh.localToWorld(a);
+  const b = new THREE.Vector3().fromBufferAttribute(pos, tri.i1); mesh.localToWorld(b);
+  const c = new THREE.Vector3().fromBufferAttribute(pos, tri.i2); mesh.localToWorld(c);
+
+  const p = hit.point;
+
+  const e01 = distPointToSegmentSq(p, a, b);
+  const e12 = distPointToSegmentSq(p, b, c);
+  const e20 = distPointToSegmentSq(p, c, a);
+
+  let best = { edge: [tri.i0, tri.i1], d: e01 };
+  if (e12 < best.d) best = { edge: [tri.i1, tri.i2], d: e12 };
+  if (e20 < best.d) best = { edge: [tri.i2, tri.i0], d: e20 };
+
+  // Show visual feedback
+  showEdgeHighlight(hit);
+  const t = performance.now() / 1000;
+  startPulse(t);
+
+  console.log("[pick edge]", best.edge, "distSq:", best.d.toFixed(4));
+}
+
+function distPointToSegmentSq(p, a, b) {
+  // Returns squared distance from point p to segment ab
+  const ab = new THREE.Vector3().subVectors(b, a);
+  const ap = new THREE.Vector3().subVectors(p, a);
+  const t = THREE.MathUtils.clamp(ap.dot(ab) / ab.lengthSq(), 0, 1);
+  const proj = new THREE.Vector3().copy(a).addScaledVector(ab, t);
+  return proj.distanceToSquared(p);
+}
+
+/* -------------------- Selection Visual Feedback -------------------- */
+
+function updateSelectionPulse(timeSec) {
+  if (!pulseEnabled) return;
+
+  const u = (timeSec - pulseStart) / pulseDuration;
+  if (u >= 1) {
+    pulseEnabled = false;
+    // Leave highlight at steady visibility at end
+    setFXOpacity(0.35);
+    return;
+  }
+
+  // Smooth pulse: 0..1..0
+  const w = Math.sin(Math.PI * u);              // 0->1->0
+  const opacity = 0.15 + 0.35 * w;              // tune
+  setFXOpacity(opacity);
+}
+
+function setFXOpacity(a) {
+  if (triFX?.material) triFX.material.opacity = a;
+  if (edgeFX?.material) edgeFX.material.opacity = Math.min(1, a + 0.25);
+  if (vertexFX?.material) vertexFX.material.opacity = Math.min(1, a + 0.25);
+}
+
+function startPulse(timeSec) {
+  pulseEnabled = true;
+  pulseStart = timeSec;
+}
+
+function showTriangleHighlight(hit) {
+  clearSelectionFX();
+
+  const mesh = hit.object;
+  const geom = mesh.geometry;
+  if (!geom || hit.faceIndex == null) return;
+
+  const tri = getTriVertexIndices(geom, hit.faceIndex);
+  const pos = geom.attributes.position;
+
+  // Build in mesh LOCAL coordinates
+  const a = new THREE.Vector3().fromBufferAttribute(pos, tri.i0);
+  const b = new THREE.Vector3().fromBufferAttribute(pos, tri.i1);
+  const c = new THREE.Vector3().fromBufferAttribute(pos, tri.i2);
+
+  const triGeom = new THREE.BufferGeometry().setFromPoints([a, b, c]);
+  triGeom.setIndex([0, 1, 2]);
+  triGeom.computeVertexNormals();
+
+  const triMat = new THREE.MeshBasicMaterial({
+    color: 0xffaa00,
+    transparent: true,
+    opacity: 0.35,
+    side: THREE.DoubleSide,
+    depthTest: true,
+    polygonOffset: true,
+    polygonOffsetFactor: -2, // Pull slightly forward to avoid z-fighting
+  });
+
+  triFX = new THREE.Mesh(triGeom, triMat);
+
+  // Attach to mesh so it inherits transforms (no world-matrix headaches)
+  mesh.add(triFX);
+}
+
+function showEdgeHighlight(hit) {
+  clearSelectionFX();
+
+  const mesh = hit.object;
+  const geom = mesh.geometry;
+  if (!geom || hit.faceIndex == null) return;
+
+  const tri = getTriVertexIndices(geom, hit.faceIndex);
+  const pos = geom.attributes.position;
+
+  const a = new THREE.Vector3().fromBufferAttribute(pos, tri.i0);
+  const b = new THREE.Vector3().fromBufferAttribute(pos, tri.i1);
+  const c = new THREE.Vector3().fromBufferAttribute(pos, tri.i2);
+
+  // Compare distance in WORLD space to choose best edge
+  const Aw = a.clone(); const Bw = b.clone(); const Cw = c.clone();
+  mesh.localToWorld(Aw); mesh.localToWorld(Bw); mesh.localToWorld(Cw);
+
+  const p = hit.point;
+  const dAB = distPointToSegmentSq(p, Aw, Bw);
+  const dBC = distPointToSegmentSq(p, Bw, Cw);
+  const dCA = distPointToSegmentSq(p, Cw, Aw);
+
+  let e0 = a, e1 = b;
+  if (dBC < dAB && dBC <= dCA) { e0 = b; e1 = c; }
+  else if (dCA < dAB && dCA < dBC) { e0 = c; e1 = a; }
+
+  // Render edge in LOCAL space as a line attached to mesh
+  const g = new THREE.BufferGeometry().setFromPoints([e0, e1]);
+  const m = new THREE.LineBasicMaterial({ color: 0x00aaff, transparent: true, opacity: 0.6, linewidth: 2 });
+
+  edgeFX = new THREE.Line(g, m);
+  mesh.add(edgeFX);
+}
+
+function showVertexHighlight(hit) {
+  clearSelectionFX();
+
+  const mesh = hit.object;
+  const geom = mesh.geometry;
+  if (!geom || hit.faceIndex == null) return;
+
+  const tri = getTriVertexIndices(geom, hit.faceIndex);
+  const pos = geom.attributes.position;
+
+  const v0 = new THREE.Vector3().fromBufferAttribute(pos, tri.i0);
+  const v1 = new THREE.Vector3().fromBufferAttribute(pos, tri.i1);
+  const v2 = new THREE.Vector3().fromBufferAttribute(pos, tri.i2);
+
+  // Decide nearest in WORLD space
+  const w0 = v0.clone(); const w1 = v1.clone(); const w2 = v2.clone();
+  mesh.localToWorld(w0); mesh.localToWorld(w1); mesh.localToWorld(w2);
+
+  const p = hit.point;
+  const d0 = w0.distanceToSquared(p);
+  const d1 = w1.distanceToSquared(p);
+  const d2 = w2.distanceToSquared(p);
+
+  let chosenLocal = v0;
+  if (d1 < d0 && d1 <= d2) chosenLocal = v1;
+  else if (d2 < d0 && d2 < d1) chosenLocal = v2;
+
+  // Small sphere, attached to mesh, positioned in LOCAL coords
+  const r = 1.2; // Tune for your scene scale
+  const g = new THREE.SphereGeometry(r, 16, 16);
+  const m = new THREE.MeshBasicMaterial({ color: 0xff00ff, transparent: true, opacity: 0.7 });
+
+  vertexFX = new THREE.Mesh(g, m);
+  vertexFX.position.copy(chosenLocal);
+  mesh.add(vertexFX);
+}
+
+function clearSelectionFX() {
+  if (triFX) {
+    triFX.parent?.remove(triFX);
+    triFX.geometry?.dispose?.();
+    triFX.material?.dispose?.();
+    triFX = null;
+  }
+  if (edgeFX) {
+    edgeFX.parent?.remove(edgeFX);
+    edgeFX.geometry?.dispose?.();
+    edgeFX.material?.dispose?.();
+    edgeFX = null;
+  }
+  if (vertexFX) {
+    vertexFX.parent?.remove(vertexFX);
+    vertexFX.geometry?.dispose?.();
+    vertexFX.material?.dispose?.();
+    vertexFX = null;
+  }
+  pulseEnabled = false;
 }
 
 /* -------------------- Pivot control -------------------- */
@@ -734,6 +1085,9 @@ function clearModel() {
     scene.remove(tangentsHelper);
     tangentsHelper = null;
   }
+  
+  // Clear pickables
+  pickables = [];
 
   if (modelRoot) {
     scene.remove(modelRoot);

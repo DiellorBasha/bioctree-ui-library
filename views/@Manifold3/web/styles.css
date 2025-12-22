@@ -102,3 +102,38 @@ html, body {
   align-items: center;
   justify-content: center;
 }
+
+/* Picker toolbar (top-right) */
+.pickerHUD {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  display: flex;
+  gap: 8px;
+  padding: 8px;
+  border-radius: 12px;
+  background: rgba(20, 20, 20, 0.75);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  z-index: 40;
+  user-select: none;
+}
+
+.toolBtn {
+  padding: 6px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.08);
+  color: #eaeaea;
+  font: 12px/1.2 system-ui, Segoe UI, Roboto, Arial, sans-serif;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.toolBtn:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.toolBtn.active {
+  background: rgba(255, 255, 255, 0.20);
+  border-color: rgba(255, 255, 255, 0.25);
+}
