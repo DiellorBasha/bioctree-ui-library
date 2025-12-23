@@ -18,14 +18,14 @@ body {
 
 .tool rect {
   fill: #000000;  /* Black background for buttons */
-  stroke: #444;
-  stroke-width: 1;
+  stroke: #4a4a4a;
+  stroke-width: 0.75;
   cursor: pointer;
   transition: all 0.2s ease;
 }
 
 .tool:hover rect {
-  fill: #1a1a1a;  /* Slight highlight on hover */
+  fill: #7a7a7a;  /* Slight highlight on hover */
   stroke: #666;
 }
 
@@ -37,9 +37,16 @@ body {
 
 .tool image {
   pointer-events: none;
-  opacity: 0.8;
+  opacity: 0.9;
 }
-
+.tool:hover image {
+  opacity: 1;
+}
 .tool.active image {
   opacity: 1;
+}
+
+.divider .divider-line {
+  fill: #444;  /* Divider line color */
+  stroke: none;
 }

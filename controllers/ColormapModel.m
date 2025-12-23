@@ -30,6 +30,7 @@ classdef ColormapModel < handle
                 case 'turbo',   C = turbo(model.Resolution);
                 case 'jet',     C = jet(model.Resolution);
                 case 'hot',     C = hot(model.Resolution);
+                case 'gray',    C = gray(model.Resolution);
                 case 'redblue'
                     C = model.makeRedBlue();
                 otherwise

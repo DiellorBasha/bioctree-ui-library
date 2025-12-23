@@ -32,6 +32,7 @@ classdef EigenmodeController < matlab.ui.componentcontainer.ComponentContainer
         % --- Eigenmodes tab
         ModeSlider
         ModeLabel
+        DensityStrip_  % DensityStrip for eigenvalue visualization
 
         % --- Kernel tab
         KernelModel_           % KernelModel instance
@@ -150,6 +151,9 @@ SeedListener   % listener handle
             comp.KernelFactoryUI_.Model = comp.KernelModel_;
             comp.EigenmodeWeightViewer_.Model = comp.KernelModel_;
             
+            % Share KernelModel with BrushContext for SpectralBrush and TrajectoryBrush
+            comp.Manifold.BrushContext.KernelModel = comp.KernelModel_;
+            
             % Add listener to update visualization when kernel changes
             addlistener(comp.KernelModel_, 'KernelType', 'PostSet', ...
                 @(~,~)comp.updateKernel());
@@ -163,9 +167,15 @@ SeedListener   % listener handle
             tEig = uitab(comp.TabGroup, 'Title', 'Eigenmodes');
 
             eigGrid = uigridlayout(tEig);
-            eigGrid.RowHeight    = {'1x','fit'};
+            eigGrid.RowHeight    = {'1x', '2x', '1x'};
             eigGrid.ColumnWidth = {'1x'};
 
+            % DensityStrip for eigenvalue visualization
+            comp.DensityStrip_ = DensityStrip(eigGrid);
+            comp.DensityStrip_.Layout.Row = 2;
+            comp.DensityStrip_.Layout.Column = 1;
+%comp.DensityStrip_.Bandwidth = 15;
+%comp.DensityStrip_.Thresholds=10;
             comp.ModeSlider = uislider(eigGrid, ...
                 'Orientation', 'horizontal', ...
                 'Limits', [1 2], ...
@@ -174,14 +184,14 @@ SeedListener   % listener handle
                 'Enable', 'off', ...
                 'ValueChangedFcn', @(~,~)comp.updateEigenmode());
 
-            comp.ModeSlider.Layout.Row = 1;
+            comp.ModeSlider.Layout.Row = 3;
 
             comp.ModeLabel = uilabel(eigGrid, ...
                 'Text', 'Mode: –', ...
                 'FontWeight', 'bold', ...
                 'HorizontalAlignment', 'center');
 
-            comp.ModeLabel.Layout.Row = 2;
+            comp.ModeLabel.Layout.Row = 1;
 
             %% =========================
             %  Colormap tab
@@ -270,9 +280,39 @@ comp.SeedListener = addlistener( ...
             if ~isempty(Lambda)
                 comp.KernelModel_.Axis = Lambda;
             end
+            
+            % Update DensityStrip with eigenvalues
+            if ~isempty(Lambda)
+                comp.DensityStrip_.Data = Lambda;
+            end
 
             comp.updateEigenmode();
             comp.updateKernel();
+        end
+
+        function setTrajectoryTarget(comp, targetVertex)
+            % Set target vertex for trajectory brush
+            % targetVertex: Vertex index for trajectory endpoint
+            
+            comp.Manifold.Target = targetVertex;
+            fprintf('[EigenmodeController] Trajectory target set to vertex %d\n', targetVertex);
+        end
+
+        function startTrajectoryAnimation(comp, updateInterval)
+            % Start animating trajectory brush from current Seed to Target
+            % updateInterval: (Optional) Time between steps in seconds (default 0.1)
+            
+            if nargin < 2
+                updateInterval = 0.1;
+            end
+            
+            comp.Manifold.startTrajectoryAnimation(updateInterval);
+        end
+
+        function stopTrajectoryAnimation(comp)
+            % Stop trajectory animation if running
+            
+            comp.Manifold.stopTrajectoryAnimation();
         end
     end
 
@@ -323,10 +363,14 @@ end
             
             switch comp.TabGroup.SelectedTab.Title
                 case 'Eigenmodes'
+                    % Eigenmodes don't depend on seed, hide annotation
                     comp.Manifold.VisualizationMode = 'Eigenmode';
+                    comp.Manifold.setSeedAnnotationVisible(false);
                     comp.updateEigenmode();
                 case 'Kernel'
+                    % Kernel uses seed position, show annotation
                     comp.Manifold.VisualizationMode = 'Signal';
+                    comp.Manifold.setSeedAnnotationVisible(true);
                     comp.updateKernel();
                 case {'Colormap'}
                     % Colormap tab doesn't change mode, just updates current viz

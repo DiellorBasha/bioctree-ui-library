@@ -63,7 +63,7 @@ classdef ManifoldBrushToolbar < matlab.ui.componentcontainer.ComponentContainer
             comp.BrushRegistry = ManifoldBrushToolbar.ManifoldBrushRegistry();
             
             % Add listener for ActiveBrush changes
-            addlistener(comp, 'ActiveBrush', 'PostSet', @(~,~)comp.update());
+            addlistener(comp, 'ActiveBrush', 'PostSet', @(~,~)comp.onActiveBrushChanged());
             
             % Add listener for Orientation changes
             addlistener(comp, 'Orientation', 'PostSet', @(~,~)comp.update());
@@ -77,14 +77,24 @@ classdef ManifoldBrushToolbar < matlab.ui.componentcontainer.ComponentContainer
             if ~isempty(comp.HTMLComponent) && isvalid(comp.HTMLComponent)
                 % Prepare data for JavaScript
                 numTools = length(comp.BrushRegistry);
-                tools = struct('id', {}, 'label', {}, 'icon', {}, 'active', {});
+                tools = struct('id', {}, 'label', {}, 'icon', {}, 'active', {}, 'isDivider', {});
                 
                 for i = 1:numTools
                     brushDef = comp.BrushRegistry{i};
                     tools(i).id = brushDef.id;
-                    tools(i).label = brushDef.label;
-                    tools(i).icon = brushDef.icon;
-                    tools(i).active = strcmp(brushDef.id, comp.ActiveBrush);
+                    
+                    % Check if this is a divider
+                    if isfield(brushDef, 'isDivider') && brushDef.isDivider
+                        tools(i).isDivider = true;
+                        tools(i).label = '';
+                        tools(i).icon = '';
+                        tools(i).active = false;
+                    else
+                        tools(i).isDivider = false;
+                        tools(i).label = brushDef.label;
+                        tools(i).icon = brushDef.icon;
+                        tools(i).active = strcmp(brushDef.id, comp.ActiveBrush);
+                    end
                 end
 
                 toolbarData = struct();
@@ -99,6 +109,78 @@ classdef ManifoldBrushToolbar < matlab.ui.componentcontainer.ComponentContainer
     end
 
     methods (Access = private)
+
+        function onActiveBrushChanged(comp)
+            % Handle ActiveBrush property changes (programmatic or from UI)
+            % Instantiates the brush and updates context
+            
+            brushId = comp.ActiveBrush;
+            
+            % Find brush in registry
+            brushInfo = [];
+            for i = 1:length(comp.BrushRegistry)
+                % Check if this is a divider
+                if isfield(comp.BrushRegistry{i}, 'isDivider') && comp.BrushRegistry{i}.isDivider
+                    continue;
+                end
+                
+                if strcmp(comp.BrushRegistry{i}.id, brushId)
+                    brushInfo = comp.BrushRegistry{i};
+                    break;
+                end
+            end
+            
+            if isempty(brushInfo)
+                warning('ManifoldBrushToolbar:InvalidBrush', 'Brush ID not found: %s', brushId);
+                comp.update();  % Update UI anyway
+                return;
+            end
+
+            % Create brush instance and update context
+            if ~isempty(comp.Context)
+                manifold = comp.Context.Manifold;
+
+                if ~isempty(manifold)
+                    try
+                        fprintf('[ManifoldBrushToolbar] Creating brush: %s\n', brushId);
+                        newBrush = brushInfo.factory(manifold);
+
+                        if isempty(comp.Context.BrushModel)
+                            comp.Context.BrushModel = ManifoldBrushModel();
+                        end
+
+                        comp.Context.BrushModel.Brush = newBrush;
+                        
+                        fprintf('[ManifoldBrushToolbar] Brush instantiated successfully: %s\n', class(newBrush));
+                    catch ME
+                        warning('ManifoldBrushToolbar:BrushCreationFailed', ...
+                            'Failed to create brush %s: %s', brushId, ME.message);
+                        fprintf('Error stack:\n');
+                        for i = 1:length(ME.stack)
+                            fprintf('  %s (line %d)\n', ME.stack(i).name, ME.stack(i).line);
+                        end
+                        return;
+                    end
+                else
+                    warning('ManifoldBrushToolbar:NoManifold', 'Context has no manifold');
+                    return;
+                end
+            else
+                warning('ManifoldBrushToolbar:NoContext', 'No context available');
+                return;
+            end
+
+            % Notify listeners
+            notify(comp, 'BrushSelected');
+            
+            % Execute callback if set
+            if ~isempty(comp.ValueChangedFcn)
+                comp.executeCallback(comp.ValueChangedFcn);
+            end
+
+            % Update UI (triggers re-render with new active state)
+            comp.update();
+        end
         
         function handleToolbarEvent(comp, event)
             % Handle events received from JavaScript via sendEventToMATLAB
@@ -117,6 +199,7 @@ classdef ManifoldBrushToolbar < matlab.ui.componentcontainer.ComponentContainer
 
         function handleToolClick(comp, payload)
             % Handle brush selection from JavaScript
+            % Simply updates ActiveBrush property, which triggers onActiveBrushChanged
             
             if isempty(payload) || ~isfield(payload, 'id')
                 return;
@@ -124,48 +207,20 @@ classdef ManifoldBrushToolbar < matlab.ui.componentcontainer.ComponentContainer
             
             try
                 brushId = payload.id;
-
-                % Find brush in registry
-                brushInfo = [];
+                
+                % Check if it's a divider (don't select dividers)
                 for i = 1:length(comp.BrushRegistry)
                     if strcmp(comp.BrushRegistry{i}.id, brushId)
-                        brushInfo = comp.BrushRegistry{i};
+                        if isfield(comp.BrushRegistry{i}, 'isDivider') && comp.BrushRegistry{i}.isDivider
+                            return;  % Don't select dividers
+                        end
                         break;
                     end
                 end
-                
-                if isempty(brushInfo)
-                    warning('ManifoldBrushToolbar:InvalidBrush', 'Brush ID not found: %s', brushId);
-                    return;
-                end
 
+                % Setting ActiveBrush will trigger onActiveBrushChanged
+                % which handles brush instantiation and context update
                 comp.ActiveBrush = brushId;
-
-                % Create brush instance and update context
-                if ~isempty(comp.Context)
-                    manifold = comp.Context.Manifold;
-
-                    if ~isempty(manifold)
-                        newBrush = brushInfo.factory(manifold);
-
-                        if isempty(comp.Context.BrushModel)
-                            comp.Context.BrushModel = ManifoldBrushModel();
-                        end
-
-                        comp.Context.BrushModel.Brush = newBrush;
-                    end
-                end
-
-                % Notify listeners
-                notify(comp, 'BrushSelected');
-                
-                % Execute callback if set
-                if ~isempty(comp.ValueChangedFcn)
-                    comp.executeCallback(comp.ValueChangedFcn);
-                end
-
-                % Update UI (triggers re-render with new active state)
-                comp.update();
 
             catch ME
                 warning('ManifoldBrushToolbar:ClickError', 'Error handling tool click: %s', ME.message);
@@ -189,6 +244,7 @@ classdef ManifoldBrushToolbar < matlab.ui.componentcontainer.ComponentContainer
             %     icon - Icon filename in vendor/icons/ (string)
             %     label - Display name (string)
             %     factory - Function handle that creates brush: @(manifold) BrushType(manifold)
+            %     isDivider - (optional) true for divider items
             
             registry = {
                 struct('id', 'delta', ...
@@ -205,6 +261,14 @@ classdef ManifoldBrushToolbar < matlab.ui.componentcontainer.ComponentContainer
                        'icon', 'prism-light.svg', ...
                        'label', 'Spectral Brush', ...
                        'factory', @(manifold) SpectralBrush(manifold));
+                
+                struct('id', 'divider1', ...
+                       'isDivider', true);
+                
+                struct('id', 'trajectory', ...
+                       'icon', 'arrow-guide.svg', ...
+                       'label', 'Trajectory Brush', ...
+                       'factory', @(manifold) TrajectoryBrush(manifold));
             };
             
             function brush = createGraphBrush(manifold)

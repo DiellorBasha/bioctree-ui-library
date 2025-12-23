@@ -22,7 +22,12 @@ classdef ManifoldBrushContext < handle
         Manifold                    % bct.Manifold
         Seed (1,1) double = 1       % Vertex index
         BrushModel ManifoldBrushModel  % ManifoldBrushModel instance
+        KernelModel KernelModel     % Optional: For SpectralBrush and TrajectoryBrush
         Field                       % Nx1 brush signal
+    end
+    
+    properties (Dependent)
+        SeedPosition                % 1x3 position vector [x y z] at Seed vertex
     end
 
     %% =========================
@@ -54,7 +59,7 @@ classdef ManifoldBrushContext < handle
                 @(~,~)obj.onSeedChanged());
 
             addlistener(obj, 'BrushModel', 'PostSet', ...
-                @(~,~)obj.onBrushChanged());
+                @(~,~)obj.onBrushModelChanged());
 
             addlistener(obj, 'Manifold', 'PostSet', ...
                 @(~,~)obj.onManifoldChanged());
@@ -72,7 +77,21 @@ classdef ManifoldBrushContext < handle
             obj.recompute();
         end
 
+        function onBrushModelChanged(obj)
+            % React to BrushModel replacement
+            
+            % Set up listener for Brush changes within the model
+            if ~isempty(obj.BrushModel)
+                addlistener(obj.BrushModel, 'Brush', 'PostSet', ...
+                    @(~,~)obj.onBrushChanged());
+            end
+            
+            notify(obj,'BrushChanged');
+            obj.recompute();
+        end
+
         function onBrushChanged(obj)
+            % React to Brush changes within BrushModel
             notify(obj,'BrushChanged');
             obj.recompute();
         end
@@ -117,6 +136,29 @@ classdef ManifoldBrushContext < handle
 
             obj.Field = w;
             notify(obj,'FieldChanged');
+        end
+    end
+    
+    %% =========================
+    % Dependent property getters
+    % =========================
+    
+    methods
+        function pos = get.SeedPosition(obj)
+            % Get 3D position of Seed vertex
+            pos = [];
+            
+            if isempty(obj.Manifold)
+                return;
+            end
+            
+            V = obj.Manifold.Vertices;
+            
+            if obj.Seed < 1 || obj.Seed > size(V, 1)
+                return;
+            end
+            
+            pos = V(obj.Seed, :);
         end
     end
 end
