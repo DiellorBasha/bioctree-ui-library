@@ -9,7 +9,7 @@
  * No visual effects - pure computation + callbacks
  */
 
-import * as THREE from "../vendor/three/build/three.module.js";
+import * as THREE from "three";
 
 /**
  * Picking system for mesh interaction

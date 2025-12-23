@@ -1,38 +1,7 @@
-import { initViewer, loadGLB, toggleSurface, toggleWireframe, toggleNormals, toggleTangents, setPickMode } from "./render.js";
+import { initViewer, loadModel, setPickMode, setPickingEnabled } from "./render.js";
 
 function getParam(name) {
   return new URLSearchParams(window.location.search).get(name);
-}
-
-function setupToggleControls() {
-  const btnSurface = document.getElementById("btnSurface");
-  const btnWireframe = document.getElementById("btnWireframe");
-  const btnNormals = document.getElementById("btnNormals");
-  const btnTangents = document.getElementById("btnTangents");
-
-  if (btnSurface) {
-    btnSurface.addEventListener("click", () => {
-      toggleSurface();
-    });
-  }
-
-  if (btnWireframe) {
-    btnWireframe.addEventListener("click", () => {
-      toggleWireframe();
-    });
-  }
-
-  if (btnNormals) {
-    btnNormals.addEventListener("click", () => {
-      toggleNormals();
-    });
-  }
-  
-  if (btnTangents) {
-    btnTangents.addEventListener("click", () => {
-      toggleTangents();
-    });
-  }
 }
 
 function setupPickerControls() {
@@ -40,7 +9,7 @@ function setupPickerControls() {
   const buttons = [
     ["btnPickVertex", "vertex"],
     ["btnPickEdge", "edge"],
-    ["btnPickTri", "triangle"]
+    ["btnPickFace", "triangle"]
   ];
 
   function setActive(id) {
@@ -54,15 +23,36 @@ function setupPickerControls() {
     const btn = document.getElementById(btnId);
     if (btn) {
       btn.addEventListener("click", () => {
-        setPickMode(mode);
-        setActive(btnId);
+        // Toggle: if already active, deactivate
+        const isActive = btn.classList.contains("active");
+        if (isActive) {
+          btn.classList.remove("active");
+          setPickingEnabled(false);
+        } else {
+          setPickMode(mode);
+          setActive(btnId);
+          setPickingEnabled(true);
+        }
       });
     }
   }
 
-  // default to triangle
-  setPickMode("triangle");
-  setActive("btnPickTri");
+  // Start with picking disabled (no mode selected)
+  setPickingEnabled(false);
+}
+
+function setupFileLoader() {
+  const btnLoad = document.getElementById("btnLoad");
+  const fileSelect = document.getElementById("fileSelect");
+
+  if (btnLoad && fileSelect) {
+    btnLoad.addEventListener("click", () => {
+      const selectedFile = fileSelect.value;
+      loadModel(selectedFile).catch((err) => {
+        console.error("Load error:", err);
+      });
+    });
+  }
 }
 
 async function main() {
@@ -71,19 +61,21 @@ async function main() {
 
   // Default to fsaverage.glb, allow override via ?asset=...
   const assetUrl = getParam("asset") ?? "./assets/fsaverage.glb";
-
-  // Setup toggle control event listeners
-  setupToggleControls();
   
   // Setup picker control event listeners
   setupPickerControls();
 
+  // Setup file loader controls
+  setupFileLoader();
+
+  // Set initial dropdown value to match loaded file
+  const fileSelect = document.getElementById("fileSelect");
+  if (fileSelect) {
+    fileSelect.value = assetUrl;
+  }
+
   // Initialize viewer (this also loads glbUrl by default)
   initViewer({ canvasEl: canvas, hudEl: hud, glbUrl: assetUrl });
-
-  // If you prefer initViewer to not auto-load, you could instead do:
-  // initViewer({ canvasEl: canvas, hudEl: hud });
-  // await loadGLB(assetUrl);
 }
 
 main().catch((err) => {

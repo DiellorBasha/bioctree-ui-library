@@ -1,25 +1,30 @@
 /**
  * viewerCore.js
  * 
- * Core three.js rendering runtime: scene, camera, renderer, and render loop.
+ * Core three.js rendering runtime: orchestration and lifecycle management.
  * 
  * Responsibilities:
- * - Create and own THREE.Scene, Camera, Renderer
+ * - Orchestrate scene, camera, renderer creation via factory functions
  * - Manage render loop (animation loop)
  * - Handle resize events
  * - Manage camera controls (OrbitControls)
+ * - Provide callback registration for render/controls events
  * 
  * Rules:
  * - No awareness of geometry or picking
  * - No material creation
- * - Pure rendering runtime
+ * - No detailed construction logic (delegates to factory modules)
+ * - Pure orchestration and lifecycle management
  */
 
-import * as THREE from '../vendor/three.module.r169.js';
-import { OrbitControls } from '../vendor/three.examples.jsm.r169.js';
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { createScene } from './scene.js';
+import { createCamera, resizeCamera } from './camera.js';
+import { createRenderer, resizeRenderer } from './renderer.js';
 
 /**
- * ViewerCore - Core three.js rendering system
+ * ViewerCore - Core three.js rendering system orchestrator
  */
 export class ViewerCore {
   constructor(canvas) {
@@ -31,6 +36,9 @@ export class ViewerCore {
     this.renderer = null;
     this.controls = null;
     
+    // Scene root nodes (populated by createScene)
+    this.roots = null;
+    
     // Animation loop state
     this.isRunning = false;
     this.renderCallbacks = [];
@@ -40,50 +48,36 @@ export class ViewerCore {
   /**
    * Initialize the core rendering system
    * @param {Object} options - Configuration options
-   * @param {THREE.Color} options.backgroundColor - Background color (default: black)
-   * @param {Object} options.cameraConfig - Camera configuration
-   * @param {Object} options.controlsConfig - Controls configuration
+   * @param {number} [options.backgroundColor=0x000000] - Background color
+   * @param {Object} [options.cameraConfig] - Camera configuration
+   * @param {Object} [options.controlsConfig] - Controls configuration
+   * @param {Object} [options.rendererConfig] - Renderer configuration
    */
   init(options = {}) {
     const {
       backgroundColor = 0x000000,
       cameraConfig = {},
-      controlsConfig = {}
+      controlsConfig = {},
+      rendererConfig = {}
     } = options;
 
-    // Create scene
-    this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color(backgroundColor);
+    // Create scene with root nodes (via factory)
+    const sceneResult = createScene({ backgroundColor });
+    this.scene = sceneResult.scene;
+    this.roots = sceneResult.roots;
 
-    // Create camera
-    const {
-      fov = 45,
-      near = 0.01,
-      far = 1e7,
-      position = [0, 0, 300],
-      up = [0, 1, 0]
-    } = cameraConfig;
-
-    this.camera = new THREE.PerspectiveCamera(fov, 1, near, far);
-    this.camera.up.set(...up);
-    this.camera.position.set(...position);
+    // Create camera (via factory)
+    // Initial aspect ratio of 1, will be updated by resize
+    this.camera = createCamera(cameraConfig, 1);
 
     // IMPORTANT: Add camera to scene for view-locked lighting
     this.scene.add(this.camera);
 
-    // Create renderer
-    this.renderer = new THREE.WebGLRenderer({ 
-      canvas: this.canvas, 
-      antialias: true 
+    // Create renderer (via factory)
+    this.renderer = createRenderer({
+      canvas: this.canvas,
+      ...rendererConfig
     });
-    this.renderer.setPixelRatio(window.devicePixelRatio ?? 1);
-
-    // Conservative tone mapping and color space
-    if ('outputColorSpace' in this.renderer) {
-      this.renderer.outputColorSpace = THREE.SRGBColorSpace;
-    }
-    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.0;
 
     // Create orbit controls
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
@@ -179,9 +173,12 @@ export class ViewerCore {
     const h = this.canvas?.clientHeight ?? 0;
     if (!w || !h) return;
 
-    this.camera.aspect = w / h;
-    this.camera.updateProjectionMatrix();
-    this.renderer.setSize(w, h, false);
+    // Update camera aspect ratio (via helper)
+    const aspect = w / h;
+    resizeCamera(this.camera, aspect);
+
+    // Update renderer size (via helper)
+    resizeRenderer(this.renderer, w, h);
 
     console.log(`[ViewerCore] Resized: ${w}x${h}`);
   }

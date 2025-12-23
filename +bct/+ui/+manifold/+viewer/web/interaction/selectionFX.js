@@ -9,7 +9,7 @@
  * No picking logic - only visualization of given selections
  */
 
-import * as THREE from "../vendor/three/build/three.module.js";
+import * as THREE from "three";
 
 /**
  * Selection visual effects system

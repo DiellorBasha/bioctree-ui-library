@@ -6,10 +6,10 @@
  * Includes pulse animation on selection.
  */
 
-import * as THREE from "../vendor/three/build/three.module.js";
-import { Line2 } from "../vendor/three/examples/jsm/lines/Line2.js";
-import { LineGeometry } from "../vendor/three/examples/jsm/lines/LineGeometry.js";
-import { LineMaterial } from "../vendor/three/examples/jsm/lines/LineMaterial.js";
+import * as THREE from "three";
+import { Line2 } from "three/addons/lines/Line2.js";
+import { LineGeometry } from "three/addons/lines/LineGeometry.js";
+import { LineMaterial } from "three/addons/lines/LineMaterial.js";
 
 /**
  * PinMarker class - visual indicator for selected vertices

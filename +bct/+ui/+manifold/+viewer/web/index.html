@@ -30,25 +30,18 @@
     <div id="pickerHUD" class="pickerHUD">
       <button id="btnPickVertex" class="toolBtn" type="button">Vertex</button>
       <button id="btnPickEdge" class="toolBtn" type="button">Edge</button>
-      <button id="btnPickTri" class="toolBtn active" type="button">Triangle</button>
+      <button id="btnPickFace" class="toolBtn" type="button">Face</button>
     </div>
 
     <div id="hud">
-      <div id="hudText"></div>
-      <div id="hudControls">
-        <button id="btnSurface" class="hud-toggle active" title="Toggle Surface">
-          <span class="toggle-icon">▣</span> Surface
-        </button>
-        <button id="btnWireframe" class="hud-toggle" title="Toggle Wireframe">
-          <span class="toggle-icon">◻</span> Wireframe
-        </button>
-        <button id="btnNormals" class="hud-toggle" title="Toggle Normals (Red)">
-          <span class="toggle-icon">↑</span> Normals
-        </button>
-        <button id="btnTangents" class="hud-toggle" title="Toggle Tangents (Cyan)">
-          <span class="toggle-icon">→</span> Tangents
-        </button>
+      <div id="hudFileSelector">
+        <select id="fileSelect">
+          <option value="./assets/fsaverage.glb">fsaverage.glb</option>
+          <option value="./assets/fsaverage.json">fsaverage.json</option>
+        </select>
+        <button id="btnLoad" type="button">Load</button>
       </div>
+      <div id="hudText"></div>
     </div>
   </div>
 

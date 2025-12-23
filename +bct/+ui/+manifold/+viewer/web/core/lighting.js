@@ -13,7 +13,7 @@
  * - All lights attached to camera for consistent illumination
  */
 
-import * as THREE from '../vendor/three.module.r169.js';
+import * as THREE from 'three';
 
 /**
  * Create a view-locked lighting rig attached to the camera.

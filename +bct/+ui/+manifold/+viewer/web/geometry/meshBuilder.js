@@ -16,7 +16,7 @@
  * - Pure geometry operations
  */
 
-import * as THREE from '../vendor/three.module.r169.js';
+import * as THREE from 'three';
 
 /**
  * Synthesize spherical UVs for a geometry if UVs are missing.

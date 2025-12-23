@@ -1,10 +1,7 @@
-import * as THREE from "three";
+﻿import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { VertexNormalsHelper } from "three/addons/helpers/VertexNormalsHelper.js";
 import { VertexTangentsHelper } from "three/addons/helpers/VertexTangentsHelper.js";
-import { Line2 } from "three/addons/lines/Line2.js";
-import { LineGeometry } from "three/addons/lines/LineGeometry.js";
-import { LineMaterial } from "three/addons/lines/LineMaterial.js";
 import { PinMarker } from "./geometry/pinMarker.js";
 import { PickingSystem } from "./interaction/picking.js";
 import { SelectionFX } from "./interaction/selectionFX.js";
@@ -12,6 +9,8 @@ import { ensureGeometryAttributes, createDownsampledGeometry, createTransformedM
 import { ViewerCore } from './core/viewerCore.js';
 import { createLightingRig } from './core/lighting.js';
 import { AxesGizmo } from './core/gizmo.js';
+import { createVisualizationControls } from './ui/visualizationControls.js';
+import { loadJSONGeometry } from './loaders/jsonGeometryLoader.js';
 
 // Core rendering system
 let viewerCore = null;
@@ -29,7 +28,6 @@ let axesGizmo = null;
 
 // Debug visuals
 let targetMarker = null; // follows controls.target (rotation anchor)
-let wireframeHelper = null; // WireframeGeometry visualization
 let normalsHelper = null; // VertexNormalsHelper visualization
 let tangentsHelper = null; // VertexTangentsHelper visualization
 
@@ -64,12 +62,17 @@ async function initLoader() {
   }
 }
 
+function showLoader() {
+  const el = document.getElementById("loaderOverlay");
+  if (!el) return;
+  el.classList.remove("hidden");
+  el.style.display = "flex"; // Ensure it's visible
+}
+
 function hideLoader() {
   const el = document.getElementById("loaderOverlay");
   if (!el) return;
   el.classList.add("hidden");
-  // Remove after fade transition
-  setTimeout(() => el.remove(), 400);
 }
 
 // Pivot mode: recommended "MeshCenter" for FreeSurfer surfaces
@@ -77,10 +80,39 @@ const PIVOT_MODE = "MeshCenter";
 
 // Debug toggles (initial state)
 const SHOW_TARGET = false; // hide pivot marker
-let SHOW_SURFACE = true; // surface mesh visibility
-let SHOW_WIREFRAME = false; // wireframe overlay
-let SHOW_NORMALS = false; // vertex normals vectors (red)
-let SHOW_TANGENTS = false; // vertex tangents vectors (cyan)
+
+// Visualization state (lil-gui contract)
+const vizState = {
+  surface: {
+    visible: true,
+    opacity: 1.0,
+    shading: 'smooth',
+    colorMode: 'uniform'
+  },
+  edges: {
+    wireframe: false,
+    width: 1.0,
+    color: '#ffffff'
+  },
+  helpers: {
+    vertexNormals: false,
+    faceNormals: false,
+    tangents: false
+  },
+  overlays: {
+    scalarField: 'none',
+    colormap: 'viridis',
+    autoRange: true
+  },
+  scene: {
+    lighting: true,
+    axes: true,
+    background: '#000000'
+  }
+};
+
+// GUI instance
+let vizGUI = null;
 
 /* -------------------- Viewer Initialization -------------------- */
 
@@ -135,6 +167,9 @@ export function initViewer({ canvasEl, hudEl, glbUrl = DEFAULT_GLB_URL }) {
   
   // Initialize picking system
   pickingSystem = new PickingSystem(camera, renderer);
+  
+  // Start with picking disabled (tools must be explicitly activated)
+  pickingSystem.setEnabled(false);
   
   // Initialize selection FX
   selectionFX = new SelectionFX();
@@ -200,6 +235,15 @@ export function initViewer({ canvasEl, hudEl, glbUrl = DEFAULT_GLB_URL }) {
 
   // Start render loop
   viewerCore.start();
+  
+  // Create visualization controls GUI
+  vizGUI = createVisualizationControls({
+    vizState,
+    onChange: updateVisualization
+  });
+  
+  // Initial visualization sync
+  updateVisualization();
 
   setHud(`Loading: ${glbUrl}`);
 
@@ -213,6 +257,7 @@ export function initViewer({ canvasEl, hudEl, glbUrl = DEFAULT_GLB_URL }) {
 }
 
 export async function loadGLB(url) {
+  showLoader();
   clearModel();
   setLoaderProgress(0);
 
@@ -257,8 +302,6 @@ export async function loadGLB(url) {
     const wireMat = new THREE.MeshBasicMaterial({
       color: 0xffffff,
       wireframe: true,
-      opacity: 0.25,
-      transparent: true,
       side: THREE.DoubleSide,
     });
 
@@ -281,22 +324,13 @@ export async function loadGLB(url) {
   requestAnimationFrame(() => {
     setLoaderProgress(100);
     setTimeout(() => {
-      // Add mesh to scene after animation delay
-      scene.add(modelRoot);
+      // IMPORTANT: Add GLB to threejs frame root (identity transform)
+      // GLB files are already Y-up from MATLAB export, no transform needed
+      viewerCore.roots.threejs.add(modelRoot);
       
-      // Wireframe visibility obeys toggle state
-      syncWireframeVisibility();
+      // Apply visualization state
+      updateVisualization();
       
-      // Normals visibility obeys toggle state
-      syncNormalsVisibility();
-      
-      // Tangents visibility obeys toggle state
-      syncTangentsVisibility();
-      
-      // Surface visibility obeys toggle state
-      syncSurfaceVisibility();
-      
-      updateAxesGizmo();
       updateTargetMarker();
       
       // Collect meshes for picking
@@ -318,57 +352,100 @@ export async function loadGLB(url) {
   });
 }
 
-/* -------------------- Public debug API -------------------- */
-
-export function setShowSurface(show) {
-  SHOW_SURFACE = !!show;
-  syncSurfaceVisibility();
-  updateToggleButtonStates();
+/**
+ * Load model from URL - detects file type and uses appropriate loader
+ * @param {string} url - Path to model file (.glb or .json)
+ */
+export async function loadModel(url) {
+  const ext = url.split('.').pop().toLowerCase();
+  
+  if (ext === 'glb' || ext === 'gltf') {
+    return loadGLB(url);
+  } else if (ext === 'json') {
+    return loadJSON(url);
+  } else {
+    throw new Error(`Unsupported file format: ${ext}`);
+  }
 }
 
-export function toggleSurface() {
-  SHOW_SURFACE = !SHOW_SURFACE;
-  syncSurfaceVisibility();
-  updateToggleButtonStates();
+/**
+ * Load JSON geometry file
+ * @param {string} url - Path to JSON geometry file
+ */
+async function loadJSON(url) {
+  showLoader();
+  clearModel();
+  setLoaderProgress(0);
+  setHud(`Loading: ${url}`);
+
+  try {
+    const geometry = await loadJSONGeometry(url);
+    setLoaderProgress(50);
+
+    // Ensure all geometry attributes (same as GLB loading)
+    ensureGeometryAttributes(geometry);
+
+    // Create materials (match GLB loading exactly)
+    const baseMat = new THREE.MeshStandardMaterial({
+      color: BASE_COLOR_HEX,
+      roughness: 0.85,
+      metalness: 0.0,
+      side: THREE.DoubleSide,
+    });
+
+    const wireMat = new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      wireframe: true,
+      side: THREE.DoubleSide,
+    });
+
+    // Create mesh with base material
+    const mesh = new THREE.Mesh(geometry, baseMat);
+    
+    // Store materials in userData
+    mesh.userData.baseMaterial = baseMat;
+    mesh.userData.wireMaterial = wireMat;
+
+    // Setup model root and loaded scene (match GLB structure)
+    modelRoot = new THREE.Group();
+    loadedScene = new THREE.Group();
+    loadedScene.add(mesh);
+    modelRoot.add(loadedScene);
+
+    setLoaderProgress(100);
+
+    // Add to scene after short delay
+    setTimeout(() => {
+      // IMPORTANT: Add JSON to MATLAB frame root (applies Z-up → Y-up transform)
+      // Raw JSON data is in MATLAB Z-up coordinates and needs conversion
+      viewerCore.roots.matlab.add(modelRoot);
+      
+      // Apply visualization state
+      updateVisualization();
+      
+      updateTargetMarker();
+      
+      // Collect meshes for picking
+      pickingSystem?.collectPickables(loadedScene);
+      
+      // Set pin length relative to mesh scale
+      if (pin) {
+        geometry.computeBoundingSphere();
+        const radius = geometry.boundingSphere?.radius ?? 100;
+        pin.setLength(radius * 0.1);
+      }
+      
+      setHud(`Loaded: ${url}`);
+      hideLoader();
+    }, 1500);
+
+  } catch (err) {
+    console.error(err);
+    setHud(String(err));
+    hideLoader();
+    throw err;
+  }
 }
-
-export function setShowWireframe(show) {
-  SHOW_WIREFRAME = !!show;
-  syncWireframeVisibility();
-  updateToggleButtonStates();
-}
-
-export function toggleWireframe() {
-  SHOW_WIREFRAME = !SHOW_WIREFRAME;
-  syncWireframeVisibility();
-  updateToggleButtonStates();
-}
-
-export function setShowNormals(show) {
-  SHOW_NORMALS = !!show;
-  syncNormalsVisibility();
-  updateToggleButtonStates();
-}
-
-export function toggleNormals() {
-  SHOW_NORMALS = !SHOW_NORMALS;
-  syncNormalsVisibility();
-  updateToggleButtonStates();
-}
-
-export function setShowTangents(show) {
-  SHOW_TANGENTS = !!show;
-  syncTangentsVisibility();
-  updateToggleButtonStates();
-}
-
-export function toggleTangents() {
-  SHOW_TANGENTS = !SHOW_TANGENTS;
-  syncTangentsVisibility();
-  updateToggleButtonStates();
-}
-
-
 
 /* -------------------- Picking API -------------------- */
 
@@ -405,9 +482,16 @@ function setPivotMode(mode) {
   updateTargetMarker();
 }
 
-/* -------------------- Surface Visibility -------------------- */
+/* -------------------- Visualization Update (lil-gui contract) -------------------- */
 
-function syncSurfaceVisibility() {
+function updateVisualization() {
+  updateSurface();
+  updateEdges();
+  updateHelpers();
+  updateScene();
+}
+
+function updateSurface() {
   if (!loadedScene) return;
 
   loadedScene.traverse((obj) => {
@@ -418,64 +502,104 @@ function syncSurfaceVisibility() {
 
     if (!baseMat || !wireMat) return;
 
-    // If surface is hidden, don't render any material
-    // If surface is shown, use appropriate material based on wireframe state
-    if (SHOW_SURFACE) {
-      obj.material = SHOW_WIREFRAME ? wireMat : baseMat;
+    // Apply visibility
+    obj.material.visible = vizState.surface.visible;
+    
+    // Apply opacity
+    baseMat.opacity = vizState.surface.opacity;
+    baseMat.transparent = vizState.surface.opacity < 1.0;
+    
+    // Apply shading
+    baseMat.flatShading = (vizState.surface.shading === 'flat');
+    baseMat.needsUpdate = true;
+  });
+}
+
+function updateEdges() {
+  if (!loadedScene) return;
+
+  loadedScene.traverse((obj) => {
+    if (!obj.isMesh) return;
+
+    const baseMat = obj.userData.baseMaterial;
+    const wireMat = obj.userData.wireMaterial;
+
+    if (!baseMat || !wireMat) return;
+
+    // Swap materials based on wireframe state
+    if (vizState.surface.visible) {
+      obj.material = vizState.edges.wireframe ? wireMat : baseMat;
       obj.material.visible = true;
     } else {
       obj.material.visible = false;
     }
+    
+    // Update wireframe color
+    if (vizState.edges.wireframe) {
+      wireMat.color.set(vizState.edges.color);
+    }
+    
     obj.material.needsUpdate = true;
   });
 }
 
-/* -------------------- Wireframe -------------------- */
+function updateHelpers() {
+  // Update vertex normals
+  if (vizState.helpers.vertexNormals) {
+    syncNormalsVisibility();
+  } else {
+    if (normalsHelper) {
+      scene.remove(normalsHelper);
+      normalsHelper = null;
+    }
+  }
+  
+  // Update tangents
+  if (vizState.helpers.tangents) {
+    syncTangentsVisibility();
+  } else {
+    if (tangentsHelper) {
+      scene.remove(tangentsHelper);
+      tangentsHelper = null;
+    }
+  }
+  
+  // Restore mesh visibility if both helpers are off
+  if (!vizState.helpers.vertexNormals && !vizState.helpers.tangents) {
+    restoreMeshVisibility();
+  }
+}
+
+function updateScene() {
+  // Update lighting visibility
+  if (lightRig) {
+    lightRig.visible = vizState.scene.lighting;
+  }
+  
+  // Update axes gizmo
+  if (axesGizmo) {
+    axesGizmo.setEnabled(vizState.scene.axes);
+  }
+  
+  // Update background color
+  if (renderer) {
+    renderer.setClearColor(vizState.scene.background);
+  }
+}
+
+/* -------------------- Legacy Sync Functions (Adapted) -------------------- */
+
+function syncSurfaceVisibility() {
+  updateSurface();
+}
 
 function syncWireframeVisibility() {
-  if (!loadedScene) return;
-
-  loadedScene.traverse((obj) => {
-    if (!obj.isMesh) return;
-
-    const baseMat = obj.userData.baseMaterial;
-    const wireMat = obj.userData.wireMaterial;
-
-    if (!baseMat || !wireMat) return;
-
-    // Swap materials based on wireframe state (only if surface is visible)
-    if (SHOW_SURFACE) {
-      obj.material = SHOW_WIREFRAME ? wireMat : baseMat;
-      obj.material.visible = true;
-    } else {
-      obj.material.visible = false;
-    }
-    obj.material.needsUpdate = true;
-  });
-
-  // Remove old helper-based wireframe if it exists
-  if (wireframeHelper) {
-    scene.remove(wireframeHelper);
-    wireframeHelper = null;
-  }
+  updateEdges();
 }
 
 /* -------------------- Normals -------------------- */
 
 function syncNormalsVisibility() {
-  if (!SHOW_NORMALS) {
-    if (normalsHelper) {
-      scene.remove(normalsHelper);
-      normalsHelper = null;
-    }
-    
-    // Restore mesh visibility if both normals and tangents are off
-    if (!SHOW_TANGENTS) {
-      restoreMeshVisibility();
-    }
-    return;
-  }
-
   if (!loadedScene) return;
 
   // Remove existing helper if present
@@ -485,7 +609,7 @@ function syncNormalsVisibility() {
   }
 
   // Hide mesh only if wireframe is NOT active
-  if (loadedScene && !SHOW_WIREFRAME) {
+  if (loadedScene && !vizState.edges.wireframe) {
     hideMeshMaterials();
   }
 
@@ -525,19 +649,6 @@ function syncNormalsVisibility() {
 /* -------------------- Tangents -------------------- */
 
 function syncTangentsVisibility() {
-  if (!SHOW_TANGENTS) {
-    if (tangentsHelper) {
-      scene.remove(tangentsHelper);
-      tangentsHelper = null;
-    }
-    
-    // Restore mesh visibility if both normals and tangents are off
-    if (!SHOW_NORMALS) {
-      restoreMeshVisibility();
-    }
-    return;
-  }
-
   if (!loadedScene) return;
 
   // Remove existing helper if present
@@ -547,7 +658,7 @@ function syncTangentsVisibility() {
   }
 
   // Hide mesh only if wireframe is NOT active
-  if (loadedScene && !SHOW_WIREFRAME) {
+  if (loadedScene && !vizState.edges.wireframe) {
     hideMeshMaterials();
   }
 
@@ -613,14 +724,10 @@ function restoreMeshVisibility() {
     if (!baseMat || !wireMat) return;
     
     // Restore appropriate material based on wireframe toggle
-    obj.material = SHOW_WIREFRAME ? wireMat : baseMat;
-    obj.material.visible = true;
+    obj.material = vizState.edges.wireframe ? wireMat : baseMat;
+    obj.material.visible = vizState.surface.visible;
   });
 }
-
-
-
-/* -------------------- Axes gizmo (bottom-left) -------------------- */
 
 /* -------------------- Pivot marker -------------------- */
 
@@ -642,54 +749,6 @@ function updateTargetMarker() {
 /* --------------------------- helpers --------------------------- */
 
 function clearModel() {
-  if (lightRig && lightRig.parent) {
-    lightRig.parent.remove(lightRig);
-  }
-
-  lightRig = new THREE.Group();
-
-  // Attach to camera so illumination is consistent across mesh rotations
-  camera.add(lightRig);
-
-  // Base lift: keep low to preserve contrast
-  const ambient = new THREE.AmbientLight(0xffffff, 0.2);
-  lightRig.add(ambient);
-
-  // Key (front-right in view space)
-  const key = new THREE.DirectionalLight(0xffffff, 1.45);
-  key.position.set(1.0, 0.8, 1.2);
-  lightRig.add(key);
-
-  // DirectionalLight uses a target to define direction; parent target to rig for view-lock
-  key.target.position.set(0, 0, 0);
-  lightRig.add(key.target);
-
-  // Fill (front-left in view space)
-  const fill = new THREE.DirectionalLight(0xffffff, 0.95);
-  fill.position.set(-1.0, 0.4, 1.0);
-  lightRig.add(fill);
-
-  fill.target.position.set(0, 0, 0);
-  lightRig.add(fill.target);
-
-  // Rim/back light (adds edge definition without creating a permanent “dark side”)
-  const rim = new THREE.DirectionalLight(0xffffff, 0.45);
-  rim.position.set(0.0, 1.0, -1.2);
-  lightRig.add(rim);
-
-  rim.target.position.set(0, 0, 0);
-  lightRig.add(rim.target);
-}
-
-/* --------------------------- helpers --------------------------- */
-
-function clearModel() {
-  // Remove wireframe if present
-  if (wireframeHelper) {
-    scene.remove(wireframeHelper);
-    wireframeHelper = null;
-  }
-
   // Remove normals if present
   if (normalsHelper) {
     scene.remove(normalsHelper);
@@ -701,12 +760,11 @@ function clearModel() {
     scene.remove(tangentsHelper);
     tangentsHelper = null;
   }
-  
-  // Clear pickables
-  pickables = [];
 
   if (modelRoot) {
-    scene.remove(modelRoot);
+    // Remove from both possible frame roots (could be in either depending on file type)
+    viewerCore.roots.threejs.remove(modelRoot);
+    viewerCore.roots.matlab.remove(modelRoot);
     disposeObject3D(modelRoot);
   }
   modelRoot = null;
@@ -729,24 +787,4 @@ function disposeObject3D(obj) {
 function setHud(text) {
   const hudText = document.getElementById("hudText");
   if (hudText) hudText.textContent = text;
-}
-
-function updateToggleButtonStates() {
-  const btnSurface = document.getElementById("btnSurface");
-  const btnWireframe = document.getElementById("btnWireframe");
-  const btnNormals = document.getElementById("btnNormals");
-  const btnTangents = document.getElementById("btnTangents");
-
-  if (btnSurface) {
-    btnSurface.classList.toggle("active", SHOW_SURFACE);
-  }
-  if (btnWireframe) {
-    btnWireframe.classList.toggle("active", SHOW_WIREFRAME);
-  }
-  if (btnNormals) {
-    btnNormals.classList.toggle("active", SHOW_NORMALS);
-  }
-  if (btnTangents) {
-    btnTangents.classList.toggle("active", SHOW_TANGENTS);
-  }
 }

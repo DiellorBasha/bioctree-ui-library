@@ -14,7 +14,7 @@
  * - View-locked orientation indicator
  */
 
-import * as THREE from '../vendor/three.module.r169.js';
+import * as THREE from 'three';
 
 /**
  * AxesGizmo - Orientation indicator overlay
