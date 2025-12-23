@@ -3,6 +3,9 @@ import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { VertexNormalsHelper } from "three/addons/helpers/VertexNormalsHelper.js";
 import { VertexTangentsHelper } from "three/addons/helpers/VertexTangentsHelper.js";
+import { Line2 } from "three/addons/lines/Line2.js";
+import { LineGeometry } from "three/addons/lines/LineGeometry.js";
+import { LineMaterial } from "three/addons/lines/LineMaterial.js";
 
 let renderer, scene, camera, controls;
 let canvas, hud;
@@ -15,6 +18,8 @@ let targetMarker = null; // follows controls.target (rotation anchor)
 let wireframeHelper = null; // WireframeGeometry visualization
 let normalsHelper = null; // VertexNormalsHelper visualization
 let tangentsHelper = null; // VertexTangentsHelper visualization
+let wavePoints = null; // Wave animation overlay
+let waveMat = null; // Wave shader material
 
 // Axes gizmo overlay (bottom-left)
 let gizmoScene = null;
@@ -34,13 +39,155 @@ let pickables = [];             // meshes to raycast against
 // Selection FX overlays
 let triFX = null;     // THREE.Mesh
 let edgeFX = null;    // THREE.Line
-let vertexFX = null;  // THREE.Mesh
+let pin = null;       // PinMarker for vertex selection
 
 let pulseEnabled = false;
 let pulseStart = 0;        // seconds
 const pulseDuration = 0.6; // seconds
 
-// Defaults
+/* -------------------- Pin Marker for Vertex Selection -------------------- */
+
+class PinMarker {
+  constructor(scene, renderer, opts = {}) {
+    this.scene = scene;
+    this.renderer = renderer;
+
+    this.length = opts.length ?? 18;          // world units; tune for your mesh scale
+    this.headRadius = opts.headRadius ?? 2.0; // world units
+    this.color = opts.color ?? 0xffcc00;
+
+    // Thick line (Line2) stem
+    this.lineGeom = new LineGeometry();
+    this.lineGeom.setPositions([0, 0, 0, 0, 1, 0]); // placeholder
+
+    this.lineMat = new LineMaterial({
+      color: this.color,
+      linewidth: opts.lineWidthPx ?? 2.5, // in pixels when worldUnits=false
+      transparent: true,
+      opacity: 1.0,
+      depthTest: true,
+      depthWrite: false,
+      worldUnits: false
+    });
+
+    // IMPORTANT: LineMaterial requires resolution (pixels)
+    this._updateResolution();
+
+    this.line = new Line2(this.lineGeom, this.lineMat);
+    this.line.computeLineDistances();
+
+    // Sphere head
+    const sphGeom = new THREE.SphereGeometry(this.headRadius, 16, 16);
+    const sphMat = new THREE.MeshStandardMaterial({
+      color: this.color,
+      roughness: 0.25,
+      metalness: 0.0,
+      emissive: new THREE.Color(this.color),
+      emissiveIntensity: 0.25
+    });
+    this.head = new THREE.Mesh(sphGeom, sphMat);
+
+    // Group for convenience
+    this.group = new THREE.Group();
+    this.group.renderOrder = 50; // draw later
+    this.group.add(this.line);
+    this.group.add(this.head);
+
+    this.scene.add(this.group);
+
+    // State
+    this.visible = false;
+    this.group.visible = false;
+
+    // Optional pulse
+    this._pulse = { active: false, t0: 0, dur: 0.35 };
+  }
+
+  _updateResolution() {
+    const size = new THREE.Vector2();
+    this.renderer.getSize(size);
+    this.lineMat.resolution.set(size.x, size.y);
+  }
+
+  onResize() {
+    this._updateResolution();
+  }
+
+  setLength(length) {
+    this.length = length;
+  }
+
+  hide() {
+    this.visible = false;
+    this.group.visible = false;
+  }
+
+  // mesh: the picked mesh
+  // vidx: vertex index (0-based)
+  setFromVertexIndex(mesh, vidx) {
+    const g = mesh.geometry;
+    const pos = g?.attributes?.position;
+    if (!pos || vidx < 0 || vidx >= pos.count) return;
+
+    // Vertex position in WORLD space
+    const p = new THREE.Vector3().fromBufferAttribute(pos, vidx);
+    mesh.localToWorld(p);
+
+    // Direction: use vertex normal if available, else camera direction fallback
+    let dir = new THREE.Vector3(0, 1, 0);
+    const nAttr = g.attributes.normal;
+    if (nAttr) {
+      dir.fromBufferAttribute(nAttr, vidx);
+      // transform normal to world direction
+      dir.transformDirection(mesh.matrixWorld).normalize().negate();
+    } else {
+      // fallback: point toward camera a bit
+      dir.subVectors(camera?.position ?? new THREE.Vector3(0,0,1), p).normalize();
+    }
+
+    const tip = new THREE.Vector3().copy(p).addScaledVector(dir, this.length);
+
+    // Update stem geometry in world coordinates
+    this.lineGeom.setPositions([
+      p.x, p.y, p.z,
+      tip.x, tip.y, tip.z
+    ]);
+    this.line.computeLineDistances();
+
+    // Head at the tip
+    this.head.position.copy(tip);
+
+    // Show
+    this.visible = true;
+    this.group.visible = true;
+
+    // Kick a small pulse
+    this._pulse.active = true;
+    this._pulse.t0 = performance.now() / 1000;
+  }
+
+  updatePulse(tSec) {
+    if (!this.visible) return;
+
+    const pulse = this._pulse;
+    if (!pulse.active) return;
+
+    const u = (tSec - pulse.t0) / pulse.dur;
+    if (u >= 1) {
+      pulse.active = false;
+      this.head.scale.setScalar(1.0);
+      this.lineMat.opacity = 1.0;
+      return;
+    }
+
+    const w = Math.sin(Math.PI * u); // 0→1→0
+    const s = 1.0 + 0.35 * w;
+    this.head.scale.setScalar(s);
+    this.lineMat.opacity = 0.75 + 0.25 * w;
+  }
+}
+
+/* -------------------- Defaults -------------------- */
 const BASE_COLOR_HEX = 0x999999; // [0.6 0.6 0.6]
 const DEFAULT_GLB_URL = "./assets/fsaverage.glb";
 const LOADER_COMPONENT_PATH = "./loaders/spinning/spinning.html";
@@ -79,9 +226,20 @@ const PIVOT_MODE = "MeshCenter";
 
 // Debug toggles (initial state)
 const SHOW_TARGET = false; // hide pivot marker
+let SHOW_SURFACE = true; // surface mesh visibility
 let SHOW_WIREFRAME = false; // wireframe overlay
 let SHOW_NORMALS = false; // vertex normals vectors (red)
 let SHOW_TANGENTS = false; // vertex tangents vectors (cyan)
+let SHOW_WAVE = false; // wave animation overlay
+
+// Wave animation constants
+const POINT_STRIDE = 6;          // use every Nth vertex (performance knob)
+const BASE_POINT_SIZE = 1.5;     // in pixels-ish, scaled by distance in shader
+const SIZE_GAIN = 6.0;
+const TIME_SCALE = 0.0006;       // speed knob
+const WAVE_OFFSET = 0.5;         // offset distance along normal (layers points above surface)
+
+let meshOpacity = 1.0;           // mesh transparency (0 = transparent, 1 = opaque)
 
 /* -------------------- UV synthesis helper -------------------- */
 
@@ -172,6 +330,14 @@ export function initViewer({ canvasEl, hudEl, glbUrl = DEFAULT_GLB_URL }) {
   // Picking: pointer event handler
   renderer.domElement.addEventListener("pointerdown", onPointerDown);
 
+  // Initialize pin marker for vertex selection
+  pin = new PinMarker(scene, renderer, {
+    color: 0xffcc00,
+    length: 18,
+    headRadius: 2.0,
+    lineWidthPx: 2.5
+  });
+
   renderer.setAnimationLoop(() => {
     controls.update();
     updateAxesGizmo();
@@ -180,6 +346,12 @@ export function initViewer({ canvasEl, hudEl, glbUrl = DEFAULT_GLB_URL }) {
     // Update selection pulse animation
     const t = performance.now() / 1000;
     updateSelectionPulse(t);
+    pin?.updatePulse(t);
+    
+    // Update wave animation time uniform
+    if (waveMat) {
+      waveMat.uniforms.uTime.value = performance.now() * TIME_SCALE;
+    }
 
     // Update normals helpers if active
     if (normalsHelper && normalsHelper.children) {
@@ -319,11 +491,28 @@ export async function loadGLB(url) {
       // Tangents visibility obeys toggle state
       syncTangentsVisibility();
       
+      // Surface visibility obeys toggle state
+      syncSurfaceVisibility();
+      
       updateAxesGizmo();
       updateTargetMarker();
       
       // Collect meshes for picking
       collectPickables();
+      
+      // Wave animation obeys toggle state
+      syncWaveVisibility();
+      
+      // Set pin length relative to mesh scale
+      if (loadedScene && pin) {
+        loadedScene.traverse((obj) => {
+          if (obj.isMesh && obj.geometry) {
+            obj.geometry.computeBoundingSphere();
+            const radius = obj.geometry.boundingSphere?.radius ?? 100;
+            pin.setLength(radius * 0.1);
+          }
+        });
+      }
       
       hideLoader();
     }, 1500); // 1500ms delay to show loading animation
@@ -331,6 +520,18 @@ export async function loadGLB(url) {
 }
 
 /* -------------------- Public debug API -------------------- */
+
+export function setShowSurface(show) {
+  SHOW_SURFACE = !!show;
+  syncSurfaceVisibility();
+  updateToggleButtonStates();
+}
+
+export function toggleSurface() {
+  SHOW_SURFACE = !SHOW_SURFACE;
+  syncSurfaceVisibility();
+  updateToggleButtonStates();
+}
 
 export function setShowWireframe(show) {
   SHOW_WIREFRAME = !!show;
@@ -366,6 +567,46 @@ export function toggleTangents() {
   SHOW_TANGENTS = !SHOW_TANGENTS;
   syncTangentsVisibility();
   updateToggleButtonStates();
+}
+
+export function setShowWave(show) {
+  SHOW_WAVE = !!show;
+  syncWaveVisibility();
+  updateToggleButtonStates();
+}
+
+export function toggleWave() {
+  SHOW_WAVE = !SHOW_WAVE;
+  syncWaveVisibility();
+  updateToggleButtonStates();
+}
+
+export function setMeshOpacity(opacity) {
+  meshOpacity = THREE.MathUtils.clamp(opacity, 0, 1);
+  updateMeshOpacity();
+}
+
+function updateMeshOpacity() {
+  if (!loadedScene) return;
+  
+  loadedScene.traverse((obj) => {
+    if (!obj.isMesh) return;
+    
+    const baseMat = obj.userData.baseMaterial;
+    const wireMat = obj.userData.wireMaterial;
+    
+    if (baseMat) {
+      baseMat.transparent = meshOpacity < 1.0;
+      baseMat.opacity = meshOpacity;
+      baseMat.needsUpdate = true;
+    }
+    
+    if (wireMat) {
+      wireMat.transparent = true; // wireframe always transparent
+      wireMat.opacity = Math.min(0.25, meshOpacity);
+      wireMat.needsUpdate = true;
+    }
+  });
 }
 
 /* -------------------- Picking API -------------------- */
@@ -491,7 +732,7 @@ function pickVertex(hit) {
   startPulse(t);
 
   // TODO: emit to MATLAB later
-  console.log("[pick vertex]", chosen.idx, "position:", chosen.pt.toArray());
+  console.log("[pick vertex] idx:", chosen.idx);
 }
 
 function pickEdge(hit) {
@@ -556,7 +797,7 @@ function updateSelectionPulse(timeSec) {
 function setFXOpacity(a) {
   if (triFX?.material) triFX.material.opacity = a;
   if (edgeFX?.material) edgeFX.material.opacity = Math.min(1, a + 0.25);
-  if (vertexFX?.material) vertexFX.material.opacity = Math.min(1, a + 0.25);
+  // Note: pin marker has its own pulse animation via pin.updatePulse()
 }
 
 function startPulse(timeSec) {
@@ -657,18 +898,12 @@ function showVertexHighlight(hit) {
   const d1 = w1.distanceToSquared(p);
   const d2 = w2.distanceToSquared(p);
 
-  let chosenLocal = v0;
-  if (d1 < d0 && d1 <= d2) chosenLocal = v1;
-  else if (d2 < d0 && d2 < d1) chosenLocal = v2;
+  let chosenIdx = tri.i0;
+  if (d1 < d0 && d1 <= d2) chosenIdx = tri.i1;
+  else if (d2 < d0 && d2 < d1) chosenIdx = tri.i2;
 
-  // Small sphere, attached to mesh, positioned in LOCAL coords
-  const r = 1.2; // Tune for your scene scale
-  const g = new THREE.SphereGeometry(r, 16, 16);
-  const m = new THREE.MeshBasicMaterial({ color: 0xff00ff, transparent: true, opacity: 0.7 });
-
-  vertexFX = new THREE.Mesh(g, m);
-  vertexFX.position.copy(chosenLocal);
-  mesh.add(vertexFX);
+  // Use pin marker for vertex selection
+  pin?.setFromVertexIndex(mesh, chosenIdx);
 }
 
 function clearSelectionFX() {
@@ -684,12 +919,7 @@ function clearSelectionFX() {
     edgeFX.material?.dispose?.();
     edgeFX = null;
   }
-  if (vertexFX) {
-    vertexFX.parent?.remove(vertexFX);
-    vertexFX.geometry?.dispose?.();
-    vertexFX.material?.dispose?.();
-    vertexFX = null;
-  }
+  pin?.hide();
   pulseEnabled = false;
 }
 
@@ -718,6 +948,31 @@ function setPivotMode(mode) {
   updateTargetMarker();
 }
 
+/* -------------------- Surface Visibility -------------------- */
+
+function syncSurfaceVisibility() {
+  if (!loadedScene) return;
+
+  loadedScene.traverse((obj) => {
+    if (!obj.isMesh) return;
+
+    const baseMat = obj.userData.baseMaterial;
+    const wireMat = obj.userData.wireMaterial;
+
+    if (!baseMat || !wireMat) return;
+
+    // If surface is hidden, don't render any material
+    // If surface is shown, use appropriate material based on wireframe state
+    if (SHOW_SURFACE) {
+      obj.material = SHOW_WIREFRAME ? wireMat : baseMat;
+      obj.material.visible = true;
+    } else {
+      obj.material.visible = false;
+    }
+    obj.material.needsUpdate = true;
+  });
+}
+
 /* -------------------- Wireframe -------------------- */
 
 function syncWireframeVisibility() {
@@ -731,8 +986,13 @@ function syncWireframeVisibility() {
 
     if (!baseMat || !wireMat) return;
 
-    // Swap materials based on wireframe state
-    obj.material = SHOW_WIREFRAME ? wireMat : baseMat;
+    // Swap materials based on wireframe state (only if surface is visible)
+    if (SHOW_SURFACE) {
+      obj.material = SHOW_WIREFRAME ? wireMat : baseMat;
+      obj.material.visible = true;
+    } else {
+      obj.material.visible = false;
+    }
     obj.material.needsUpdate = true;
   });
 
@@ -957,6 +1217,163 @@ function restoreMeshVisibility() {
   });
 }
 
+/* -------------------- Wave Animation -------------------- */
+
+function syncWaveVisibility() {
+  if (!SHOW_WAVE) {
+    if (wavePoints) {
+      wavePoints.parent?.remove(wavePoints);
+      wavePoints.geometry?.dispose?.();
+      waveMat?.dispose?.();
+      wavePoints = null;
+      waveMat = null;
+    }
+    return;
+  }
+
+  if (!loadedScene) return;
+
+  // Remove existing wave if present
+  if (wavePoints) {
+    wavePoints.parent?.remove(wavePoints);
+    wavePoints.geometry?.dispose?.();
+    waveMat?.dispose?.();
+    wavePoints = null;
+    waveMat = null;
+  }
+
+  // Find first mesh to build wave from
+  let firstMesh = null;
+  loadedScene.traverse((obj) => {
+    if (!firstMesh && obj.isMesh && obj.geometry?.attributes?.position) {
+      firstMesh = obj;
+    }
+  });
+
+  if (!firstMesh) return;
+
+  wavePoints = buildWavePointsFromMesh(firstMesh, {
+    stride: POINT_STRIDE,
+    baseSize: BASE_POINT_SIZE,
+    sizeGain: SIZE_GAIN
+  });
+  
+  // Parent to mesh so it inherits transforms
+  firstMesh.add(wavePoints);
+}
+
+function buildWavePointsFromMesh(mesh, { stride, baseSize, sizeGain }) {
+  const srcPos = mesh.geometry.attributes.position;
+  const srcNorm = mesh.geometry.attributes.normal;
+  const count = Math.floor(srcPos.count / stride);
+
+  const positions = new Float32Array(count * 3);
+  let j = 0;
+  
+  // Offset points along normals to layer above surface
+  const offset = new THREE.Vector3();
+  const pos = new THREE.Vector3();
+  
+  for (let i = 0; i < srcPos.count; i += stride) {
+    pos.set(
+      srcPos.getX(i),
+      srcPos.getY(i),
+      srcPos.getZ(i)
+    );
+    
+    // Offset along normal if available
+    if (srcNorm) {
+      offset.set(
+        srcNorm.getX(i),
+        srcNorm.getY(i),
+        srcNorm.getZ(i)
+      ).normalize().multiplyScalar(WAVE_OFFSET);
+      pos.add(offset);
+    }
+    
+    positions[j++] = pos.x;
+    positions[j++] = pos.y;
+    positions[j++] = pos.z;
+  }
+
+  const geom = new THREE.BufferGeometry();
+  geom.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+
+  waveMat = new THREE.ShaderMaterial({
+    uniforms: {
+      uTime: { value: 0.0 },
+      uBaseSize: { value: baseSize },
+      uSizeGain: { value: sizeGain }
+    },
+    vertexShader: /* glsl */ `
+      uniform float uTime;
+      uniform float uBaseSize;
+      uniform float uSizeGain;
+
+      varying float vScale;
+
+      void main() {
+        // Billboard-style wave field
+        vec3 trTime = vec3(position.x + uTime, position.y + uTime, position.z + uTime);
+        float scale = sin(trTime.x * 2.1) + sin(trTime.y * 3.2) + sin(trTime.z * 4.3);
+        vScale = scale;
+
+        vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+
+        // Perspective-correct point sizing
+        float s = uBaseSize + uSizeGain * (0.5 + 0.5 * sin(scale));
+        gl_PointSize = s * (300.0 / -mvPosition.z);
+
+        gl_Position = projectionMatrix * mvPosition;
+      }
+    `,
+    fragmentShader: /* glsl */ `
+      precision highp float;
+      varying float vScale;
+
+      // HSL to RGB conversion
+      vec3 hue2rgb(float h) {
+        h = mod(h, 1.0);
+        float r = abs(h * 6.0 - 3.0) - 1.0;
+        float g = 2.0 - abs(h * 6.0 - 2.0);
+        float b = 2.0 - abs(h * 6.0 - 4.0);
+        return clamp(vec3(r, g, b), 0.0, 1.0);
+      }
+
+      vec3 hsl2rgb(vec3 hsl) {
+        vec3 rgb = hue2rgb(hsl.x);
+        float c = (1.0 - abs(2.0 * hsl.z - 1.0)) * hsl.y;
+        return (rgb - 0.5) * c + hsl.z;
+      }
+
+      void main() {
+        // Make the point a circle (billboard disc)
+        vec2 p = gl_PointCoord - vec2(0.5);
+        float r = length(p);
+        if (r > 0.5) discard;
+
+        // Soft edge
+        float alpha = smoothstep(0.5, 0.15, r);
+
+        // Map vScale to a hue
+        float hue = fract(vScale / 5.0);
+        vec3 col = hsl2rgb(vec3(hue, 1.0, 0.55));
+
+        gl_FragColor = vec4(col, alpha);
+      }
+    `,
+    transparent: true,
+    depthTest: true,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending
+  });
+
+  const pts = new THREE.Points(geom, waveMat);
+  pts.frustumCulled = false;
+  pts.renderOrder = 10;
+  return pts;
+}
+
 /* -------------------- Axes gizmo (bottom-left) -------------------- */
 
 function initAxesGizmo() {
@@ -1086,6 +1503,15 @@ function clearModel() {
     tangentsHelper = null;
   }
   
+  // Remove wave if present
+  if (wavePoints) {
+    wavePoints.parent?.remove(wavePoints);
+    wavePoints.geometry?.dispose?.();
+    waveMat?.dispose?.();
+    wavePoints = null;
+    waveMat = null;
+  }
+  
   // Clear pickables
   pickables = [];
 
@@ -1118,6 +1544,7 @@ function resize() {
   camera.aspect = w / h;
   camera.updateProjectionMatrix();
   renderer.setSize(w, h, false);
+  pin?.onResize();
 
   updateAxesGizmo();
 }
@@ -1128,10 +1555,15 @@ function setHud(text) {
 }
 
 function updateToggleButtonStates() {
+  const btnSurface = document.getElementById("btnSurface");
   const btnWireframe = document.getElementById("btnWireframe");
   const btnNormals = document.getElementById("btnNormals");
   const btnTangents = document.getElementById("btnTangents");
+  const btnWave = document.getElementById("btnWave");
 
+  if (btnSurface) {
+    btnSurface.classList.toggle("active", SHOW_SURFACE);
+  }
   if (btnWireframe) {
     btnWireframe.classList.toggle("active", SHOW_WIREFRAME);
   }
@@ -1140,5 +1572,8 @@ function updateToggleButtonStates() {
   }
   if (btnTangents) {
     btnTangents.classList.toggle("active", SHOW_TANGENTS);
+  }
+  if (btnWave) {
+    btnWave.classList.toggle("active", SHOW_WAVE);
   }
 }

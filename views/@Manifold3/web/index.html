@@ -36,6 +36,9 @@
     <div id="hud">
       <div id="hudText"></div>
       <div id="hudControls">
+        <button id="btnSurface" class="hud-toggle active" title="Toggle Surface">
+          <span class="toggle-icon">▣</span> Surface
+        </button>
         <button id="btnWireframe" class="hud-toggle" title="Toggle Wireframe">
           <span class="toggle-icon">◻</span> Wireframe
         </button>
@@ -45,6 +48,13 @@
         <button id="btnTangents" class="hud-toggle" title="Toggle Tangents (Cyan)">
           <span class="toggle-icon">→</span> Tangents
         </button>
+        <button id="btnWave" class="hud-toggle" title="Toggle Wave Animation">
+          <span class="toggle-icon">~</span> Wave
+        </button>
+        <div class="opacity-control">
+          <label for="meshOpacitySlider" class="opacity-label">Mesh Opacity</label>
+          <input type="range" id="meshOpacitySlider" class="opacity-slider" min="0" max="100" value="100">
+        </div>
       </div>
     </div>
   </div>

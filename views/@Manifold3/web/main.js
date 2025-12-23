@@ -1,13 +1,21 @@
-import { initViewer, loadGLB, toggleWireframe, toggleNormals, toggleTangents, setPickMode } from "./render.js";
+import { initViewer, loadGLB, toggleSurface, toggleWireframe, toggleNormals, toggleTangents, toggleWave, setPickMode, setMeshOpacity } from "./render.js";
 
 function getParam(name) {
   return new URLSearchParams(window.location.search).get(name);
 }
 
 function setupToggleControls() {
+  const btnSurface = document.getElementById("btnSurface");
   const btnWireframe = document.getElementById("btnWireframe");
   const btnNormals = document.getElementById("btnNormals");
   const btnTangents = document.getElementById("btnTangents");
+  const btnWave = document.getElementById("btnWave");
+
+  if (btnSurface) {
+    btnSurface.addEventListener("click", () => {
+      toggleSurface();
+    });
+  }
 
   if (btnWireframe) {
     btnWireframe.addEventListener("click", () => {
@@ -24,6 +32,12 @@ function setupToggleControls() {
   if (btnTangents) {
     btnTangents.addEventListener("click", () => {
       toggleTangents();
+    });
+  }
+  
+  if (btnWave) {
+    btnWave.addEventListener("click", () => {
+      toggleWave();
     });
   }
 }
@@ -58,6 +72,17 @@ function setupPickerControls() {
   setActive("btnPickTri");
 }
 
+function setupOpacityControl() {
+  const slider = document.getElementById("meshOpacitySlider");
+  
+  if (slider) {
+    slider.addEventListener("input", (evt) => {
+      const value = parseFloat(evt.target.value) / 100; // Convert 0-100 to 0-1
+      setMeshOpacity(value);
+    });
+  }
+}
+
 async function main() {
   const canvas = document.getElementById("canvas");
   const hud = document.getElementById("hud");
@@ -70,6 +95,9 @@ async function main() {
   
   // Setup picker control event listeners
   setupPickerControls();
+  
+  // Setup opacity control
+  setupOpacityControl();
 
   // Initialize viewer (this also loads glbUrl by default)
   initViewer({ canvasEl: canvas, hudEl: hud, glbUrl: assetUrl });
