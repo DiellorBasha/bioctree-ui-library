@@ -1,16 +1,13 @@
 ﻿import * as THREE from "three";
-import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
-import { VertexNormalsHelper } from "three/addons/helpers/VertexNormalsHelper.js";
-import { VertexTangentsHelper } from "three/addons/helpers/VertexTangentsHelper.js";
 import { PinMarker } from "./geometry/pinMarker.js";
 import { PickingSystem } from "./interaction/picking.js";
 import { SelectionFX } from "./interaction/selectionFX.js";
-import { ensureGeometryAttributes, createDownsampledGeometry, createTransformedMesh } from './geometry/meshBuilder.js';
 import { ViewerCore } from './core/viewerCore.js';
 import { createLightingRig } from './core/lighting.js';
 import { AxesGizmo } from './core/gizmo.js';
 import { createVisualizationControls } from './ui/visualizationControls.js';
-import { loadJSONGeometry } from './loaders/jsonGeometryLoader.js';
+import { MeshManager } from './runtime/meshManager.js';
+import { VisualizationManager } from './runtime/visualizationManager.js';
 
 // Core rendering system
 let viewerCore = null;
@@ -19,17 +16,16 @@ let viewerCore = null;
 let renderer, scene, camera, controls;
 let canvas, hud;
 
-let modelRoot = null;   // holds loaded glTF scene
-let loadedScene = null; // gltf.scene reference
-
 // Core subsystems
 let lightRig = null;
 let axesGizmo = null;
 
+// Runtime managers
+let meshManager = null;
+let vizManager = null;
+
 // Debug visuals
 let targetMarker = null; // follows controls.target (rotation anchor)
-let normalsHelper = null; // VertexNormalsHelper visualization
-let tangentsHelper = null; // VertexTangentsHelper visualization
 
 // Interaction systems
 let pickingSystem = null;
@@ -37,7 +33,6 @@ let selectionFX = null;
 let pin = null;
 
 /* -------------------- Defaults -------------------- */
-const BASE_COLOR_HEX = 0x999999; // [0.6 0.6 0.6]
 const DEFAULT_GLB_URL = "./assets/fsaverage.glb";
 const LOADER_COMPONENT_PATH = "./loaders/spinning/spinning.html";
 
@@ -152,6 +147,10 @@ export function initViewer({ canvasEl, hudEl, glbUrl = DEFAULT_GLB_URL }) {
   axesGizmo = new AxesGizmo();
   axesGizmo.init({ backgroundColor: 0x000000 });
 
+  // Initialize runtime managers
+  meshManager = new MeshManager(viewerCore);
+  vizManager = new VisualizationManager(viewerCore, meshManager, lightRig, axesGizmo);
+
   // Pivot marker (optional)
   if (SHOW_TARGET) installTargetMarker();
   updateTargetMarker();
@@ -213,19 +212,9 @@ export function initViewer({ canvasEl, hudEl, glbUrl = DEFAULT_GLB_URL }) {
     // Resize pin on viewport changes
     pin?.onResize();
 
-    // Update normals helpers if active
-    if (normalsHelper && normalsHelper.children) {
-      normalsHelper.children.forEach(helper => {
-        if (helper.update) helper.update();
-      });
-    }
-    
-    // Update tangents helpers if active
-    if (tangentsHelper && tangentsHelper.children) {
-      tangentsHelper.children.forEach(helper => {
-        if (helper.update) helper.update();
-      });
-    }
+    // Update normals/tangents helpers if active (via vizManager)
+    vizManager?.updateNormalsHelpers();
+    vizManager?.updateTangentsHelpers();
   });
 
   // Register gizmo overlay render callback (after main render)
@@ -239,11 +228,11 @@ export function initViewer({ canvasEl, hudEl, glbUrl = DEFAULT_GLB_URL }) {
   // Create visualization controls GUI
   vizGUI = createVisualizationControls({
     vizState,
-    onChange: updateVisualization
+    onChange: () => vizManager?.applyState(vizState)
   });
   
   // Initial visualization sync
-  updateVisualization();
+  vizManager?.applyState(vizState);
 
   setHud(`Loading: ${glbUrl}`);
 
@@ -258,98 +247,47 @@ export function initViewer({ canvasEl, hudEl, glbUrl = DEFAULT_GLB_URL }) {
 
 export async function loadGLB(url) {
   showLoader();
-  clearModel();
   setLoaderProgress(0);
 
-  const manager = new THREE.LoadingManager();
-  manager.onError = (u) => console.error("Loading error:", u);
+  try {
+    await meshManager.loadGLB(url);
+    
+    // Post-load setup
+    const loadedScene = meshManager.getLoadedScene();
+    const modelRoot = meshManager.getModelRoot();
+    
+    // Set orbit pivot (recommended) - calculate before adding to scene
+    setPivotMode(PIVOT_MODE);
 
-  const loader = new GLTFLoader(manager);
-  const gltf = await new Promise((resolve, reject) => {
-    loader.load(
-      url,
-      resolve,
-      (xhr) => {
-        if (xhr && xhr.total) {
-          setLoaderProgress((xhr.loaded / xhr.total) * 100);
+    setHud(`Loaded: ${url}`);
+
+    // Hide loader after a frame and a short delay to let animation run
+    requestAnimationFrame(() => {
+      setLoaderProgress(100);
+      setTimeout(() => {
+        // Apply visualization state
+        vizManager?.applyState(vizState);
+        
+        updateTargetMarker();
+        
+        // Collect meshes for picking
+        pickingSystem?.collectPickables(loadedScene);
+        
+        // Set pin length relative to mesh scale
+        if (loadedScene && pin) {
+          const bounds = meshManager.getBounds();
+          pin.setLength(bounds.radius * 0.1);
         }
-      },
-      reject
-    );
-  });
-
-  modelRoot = new THREE.Group();
-  loadedScene = gltf.scene;
-
-  // Apply defaults to all meshes
-  loadedScene.traverse((obj) => {
-    if (!obj.isMesh) return;
-
-    const geom = obj.geometry;
-    if (geom) {
-      // Use meshBuilder to ensure all geometry attributes
-      ensureGeometryAttributes(geom);
-    }
-
-    // Create and cache both base and wireframe materials
-    const baseMat = new THREE.MeshStandardMaterial({
-      color: BASE_COLOR_HEX,
-      roughness: 0.85,
-      metalness: 0.0,
-      side: THREE.DoubleSide,
+        
+        hideLoader();
+      }, 1500); // 1500ms delay to show loading animation
     });
-
-    const wireMat = new THREE.MeshBasicMaterial({
-      color: 0xffffff,
-      wireframe: true,
-      side: THREE.DoubleSide,
-    });
-
-    obj.userData.baseMaterial = baseMat;
-    obj.userData.wireMaterial = wireMat;
-
-    // Start in base mode
-    obj.material = baseMat;
-  });
-
-  modelRoot.add(loadedScene);
-
-  // Set orbit pivot (recommended) - calculate before adding to scene
-  setPivotMode(PIVOT_MODE);
-
-  setHud(`Loaded: ${url}`);
-
-  // Hide loader after a frame and a short delay to let animation run
-  // Add mesh to scene only after loader animation completes
-  requestAnimationFrame(() => {
-    setLoaderProgress(100);
-    setTimeout(() => {
-      // IMPORTANT: Add GLB to threejs frame root (identity transform)
-      // GLB files are already Y-up from MATLAB export, no transform needed
-      viewerCore.roots.threejs.add(modelRoot);
-      
-      // Apply visualization state
-      updateVisualization();
-      
-      updateTargetMarker();
-      
-      // Collect meshes for picking
-      pickingSystem?.collectPickables(loadedScene);
-      
-      // Set pin length relative to mesh scale
-      if (loadedScene && pin) {
-        loadedScene.traverse((obj) => {
-          if (obj.isMesh && obj.geometry) {
-            obj.geometry.computeBoundingSphere();
-            const radius = obj.geometry.boundingSphere?.radius ?? 100;
-            pin.setLength(radius * 0.1);
-          }
-        });
-      }
-      
-      hideLoader();
-    }, 1500); // 1500ms delay to show loading animation
-  });
+  } catch (err) {
+    console.error(err);
+    setHud(String(err));
+    hideLoader();
+    throw err;
+  }
 }
 
 /**
@@ -357,15 +295,7 @@ export async function loadGLB(url) {
  * @param {string} url - Path to model file (.glb or .json)
  */
 export async function loadModel(url) {
-  const ext = url.split('.').pop().toLowerCase();
-  
-  if (ext === 'glb' || ext === 'gltf') {
-    return loadGLB(url);
-  } else if (ext === 'json') {
-    return loadJSON(url);
-  } else {
-    throw new Error(`Unsupported file format: ${ext}`);
-  }
+  return meshManager.loadModelFromUrl(url);
 }
 
 /**
@@ -374,54 +304,22 @@ export async function loadModel(url) {
  */
 async function loadJSON(url) {
   showLoader();
-  clearModel();
   setLoaderProgress(0);
   setHud(`Loading: ${url}`);
 
   try {
-    const geometry = await loadJSONGeometry(url);
-    setLoaderProgress(50);
-
-    // Ensure all geometry attributes (same as GLB loading)
-    ensureGeometryAttributes(geometry);
-
-    // Create materials (match GLB loading exactly)
-    const baseMat = new THREE.MeshStandardMaterial({
-      color: BASE_COLOR_HEX,
-      roughness: 0.85,
-      metalness: 0.0,
-      side: THREE.DoubleSide,
-    });
-
-    const wireMat = new THREE.MeshBasicMaterial({
-      color: 0xffffff,
-      wireframe: true,
-      side: THREE.DoubleSide,
-    });
-
-    // Create mesh with base material
-    const mesh = new THREE.Mesh(geometry, baseMat);
+    await meshManager.loadJSON(url);
     
-    // Store materials in userData
-    mesh.userData.baseMaterial = baseMat;
-    mesh.userData.wireMaterial = wireMat;
-
-    // Setup model root and loaded scene (match GLB structure)
-    modelRoot = new THREE.Group();
-    loadedScene = new THREE.Group();
-    loadedScene.add(mesh);
-    modelRoot.add(loadedScene);
-
     setLoaderProgress(100);
+
+    // Post-load setup
+    const loadedScene = meshManager.getLoadedScene();
+    const bounds = meshManager.getBounds();
 
     // Add to scene after short delay
     setTimeout(() => {
-      // IMPORTANT: Add JSON to MATLAB frame root (applies Z-up → Y-up transform)
-      // Raw JSON data is in MATLAB Z-up coordinates and needs conversion
-      viewerCore.roots.matlab.add(modelRoot);
-      
       // Apply visualization state
-      updateVisualization();
+      vizManager?.applyState(vizState);
       
       updateTargetMarker();
       
@@ -430,9 +328,7 @@ async function loadJSON(url) {
       
       // Set pin length relative to mesh scale
       if (pin) {
-        geometry.computeBoundingSphere();
-        const radius = geometry.boundingSphere?.radius ?? 100;
-        pin.setLength(radius * 0.1);
+        pin.setLength(bounds.radius * 0.1);
       }
       
       setHud(`Loaded: ${url}`);
@@ -465,6 +361,7 @@ function setPivotMode(mode) {
   if (mode === "WorldOrigin") {
     controls.target.set(0, 0, 0);
   } else {
+    const modelRoot = meshManager?.getModelRoot();
     if (modelRoot) {
       const center = new THREE.Box3().setFromObject(modelRoot).getCenter(new THREE.Vector3());
       controls.target.copy(center);
@@ -480,253 +377,6 @@ function setPivotMode(mode) {
 
   controls.update();
   updateTargetMarker();
-}
-
-/* -------------------- Visualization Update (lil-gui contract) -------------------- */
-
-function updateVisualization() {
-  updateSurface();
-  updateEdges();
-  updateHelpers();
-  updateScene();
-}
-
-function updateSurface() {
-  if (!loadedScene) return;
-
-  loadedScene.traverse((obj) => {
-    if (!obj.isMesh) return;
-
-    const baseMat = obj.userData.baseMaterial;
-    const wireMat = obj.userData.wireMaterial;
-
-    if (!baseMat || !wireMat) return;
-
-    // Apply visibility
-    obj.material.visible = vizState.surface.visible;
-    
-    // Apply opacity
-    baseMat.opacity = vizState.surface.opacity;
-    baseMat.transparent = vizState.surface.opacity < 1.0;
-    
-    // Apply shading
-    baseMat.flatShading = (vizState.surface.shading === 'flat');
-    baseMat.needsUpdate = true;
-  });
-}
-
-function updateEdges() {
-  if (!loadedScene) return;
-
-  loadedScene.traverse((obj) => {
-    if (!obj.isMesh) return;
-
-    const baseMat = obj.userData.baseMaterial;
-    const wireMat = obj.userData.wireMaterial;
-
-    if (!baseMat || !wireMat) return;
-
-    // Swap materials based on wireframe state
-    if (vizState.surface.visible) {
-      obj.material = vizState.edges.wireframe ? wireMat : baseMat;
-      obj.material.visible = true;
-    } else {
-      obj.material.visible = false;
-    }
-    
-    // Update wireframe color
-    if (vizState.edges.wireframe) {
-      wireMat.color.set(vizState.edges.color);
-    }
-    
-    obj.material.needsUpdate = true;
-  });
-}
-
-function updateHelpers() {
-  // Update vertex normals
-  if (vizState.helpers.vertexNormals) {
-    syncNormalsVisibility();
-  } else {
-    if (normalsHelper) {
-      scene.remove(normalsHelper);
-      normalsHelper = null;
-    }
-  }
-  
-  // Update tangents
-  if (vizState.helpers.tangents) {
-    syncTangentsVisibility();
-  } else {
-    if (tangentsHelper) {
-      scene.remove(tangentsHelper);
-      tangentsHelper = null;
-    }
-  }
-  
-  // Restore mesh visibility if both helpers are off
-  if (!vizState.helpers.vertexNormals && !vizState.helpers.tangents) {
-    restoreMeshVisibility();
-  }
-}
-
-function updateScene() {
-  // Update lighting visibility
-  if (lightRig) {
-    lightRig.visible = vizState.scene.lighting;
-  }
-  
-  // Update axes gizmo
-  if (axesGizmo) {
-    axesGizmo.setEnabled(vizState.scene.axes);
-  }
-  
-  // Update background color
-  if (renderer) {
-    renderer.setClearColor(vizState.scene.background);
-  }
-}
-
-/* -------------------- Legacy Sync Functions (Adapted) -------------------- */
-
-function syncSurfaceVisibility() {
-  updateSurface();
-}
-
-function syncWireframeVisibility() {
-  updateEdges();
-}
-
-/* -------------------- Normals -------------------- */
-
-function syncNormalsVisibility() {
-  if (!loadedScene) return;
-
-  // Remove existing helper if present
-  if (normalsHelper) {
-    scene.remove(normalsHelper);
-    normalsHelper = null;
-  }
-
-  // Hide mesh only if wireframe is NOT active
-  if (loadedScene && !vizState.edges.wireframe) {
-    hideMeshMaterials();
-  }
-
-  // Create vertex normals helpers for all meshes
-  let meshCount = 0;
-  
-  loadedScene.traverse((obj) => {
-    if (!obj.isMesh) return;
-    meshCount++;
-
-    const downsampleFactor = 1; // Testing: no downsampling (was 100)
-    const geometry = obj.geometry;
-    
-    console.log(`[Manifold3] Normals - Mesh ${meshCount}: has geometry=${!!geometry}`);
-    
-    // Create downsampled geometry using meshBuilder
-    const sparseGeometry = createDownsampledGeometry(geometry, downsampleFactor, false);
-    if (!sparseGeometry) return;
-    
-    // Create temporary mesh with transforms copied from source
-    const tempMesh = createTransformedMesh(sparseGeometry, obj);
-    
-    // Create normals helper (red)
-    const helper = new VertexNormalsHelper(tempMesh, 2, 0xff0000);
-    
-    if (!normalsHelper) {
-      normalsHelper = new THREE.Group();
-      scene.add(normalsHelper);
-    }
-    
-    normalsHelper.add(helper);
-  });
-  
-  console.log(`[Manifold3] Normals: ${meshCount} meshes`);
-}
-
-/* -------------------- Tangents -------------------- */
-
-function syncTangentsVisibility() {
-  if (!loadedScene) return;
-
-  // Remove existing helper if present
-  if (tangentsHelper) {
-    scene.remove(tangentsHelper);
-    tangentsHelper = null;
-  }
-
-  // Hide mesh only if wireframe is NOT active
-  if (loadedScene && !vizState.edges.wireframe) {
-    hideMeshMaterials();
-  }
-
-  // Create vertex tangents helpers for all meshes
-  let meshCount = 0;
-  let tangentCount = 0;
-  
-  loadedScene.traverse((obj) => {
-    if (!obj.isMesh) return;
-    meshCount++;
-
-    const downsampleFactor = 1; // Testing: no downsampling (was 100)
-    const geometry = obj.geometry;
-    const positions = geometry.attributes.position;
-    const normals = geometry.attributes.normal;
-    const tangents = geometry.attributes.tangent;
-    const uvs = geometry.attributes.uv;
-    
-    console.log(`[Manifold3] Tangents - Mesh ${meshCount}: positions=${!!positions}, normals=${!!normals}, tangents=${!!tangents}, uvs=${!!uvs}`);
-    
-    if (!positions || !normals || !tangents) return;
-
-    tangentCount++;
-
-    // Create downsampled geometry with tangents using meshBuilder
-    const sparseGeometry = createDownsampledGeometry(geometry, downsampleFactor, true);
-    if (!sparseGeometry) return;
-    
-    // Create temporary mesh with transforms copied from source
-    const tempMesh = createTransformedMesh(sparseGeometry, obj);
-    
-    // Create tangents helper (cyan)
-    const helper = new VertexTangentsHelper(tempMesh, 2, 0x00ffff);
-    
-    if (!tangentsHelper) {
-      tangentsHelper = new THREE.Group();
-      scene.add(tangentsHelper);
-    }
-    
-    tangentsHelper.add(helper);
-    console.log(`[Manifold3] Created tangents helper for mesh ${meshCount}`);
-  });
-  
-  console.log(`[Manifold3] Tangents: ${meshCount} meshes, ${tangentCount} with tangents`);
-}
-
-// Helper functions to reduce duplication
-function hideMeshMaterials() {
-  if (!loadedScene) return;
-  loadedScene.traverse((obj) => {
-    if (obj.isMesh && obj.material) {
-      obj.material.visible = false;
-    }
-  });
-}
-
-function restoreMeshVisibility() {
-  if (!loadedScene) return;
-  loadedScene.traverse((obj) => {
-    if (!obj.isMesh) return;
-    const baseMat = obj.userData.baseMaterial;
-    const wireMat = obj.userData.wireMaterial;
-    if (!baseMat || !wireMat) return;
-    
-    // Restore appropriate material based on wireframe toggle
-    obj.material = vizState.edges.wireframe ? wireMat : baseMat;
-    obj.material.visible = vizState.surface.visible;
-  });
 }
 
 /* -------------------- Pivot marker -------------------- */
@@ -747,42 +397,6 @@ function updateTargetMarker() {
 }
 
 /* --------------------------- helpers --------------------------- */
-
-function clearModel() {
-  // Remove normals if present
-  if (normalsHelper) {
-    scene.remove(normalsHelper);
-    normalsHelper = null;
-  }
-  
-  // Remove tangents if present
-  if (tangentsHelper) {
-    scene.remove(tangentsHelper);
-    tangentsHelper = null;
-  }
-
-  if (modelRoot) {
-    // Remove from both possible frame roots (could be in either depending on file type)
-    viewerCore.roots.threejs.remove(modelRoot);
-    viewerCore.roots.matlab.remove(modelRoot);
-    disposeObject3D(modelRoot);
-  }
-  modelRoot = null;
-  loadedScene = null;
-}
-
-function disposeObject3D(obj) {
-  obj.traverse((o) => {
-    if (o.geometry && typeof o.geometry.dispose === "function") o.geometry.dispose();
-    if (o.material) {
-      if (Array.isArray(o.material)) {
-        o.material.forEach((m) => m && typeof m.dispose === "function" && m.dispose());
-      } else if (typeof o.material.dispose === "function") {
-        o.material.dispose();
-      }
-    }
-  });
-}
 
 function setHud(text) {
   const hudText = document.getElementById("hudText");
