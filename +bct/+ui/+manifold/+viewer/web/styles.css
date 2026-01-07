@@ -78,8 +78,13 @@ html, body {
 }
 
 #hudText {
-  white-space: pre;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 250px;
   pointer-events: none;
+  font-size: 11px;
+  opacity: 0.8;
 }
 
 /* Loading overlay - modular loader system */

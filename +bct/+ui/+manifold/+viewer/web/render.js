@@ -6,6 +6,7 @@ import { ViewerCore } from './core/viewerCore.js';
 import { createLightingRig } from './core/lighting.js';
 import { AxesGizmo } from './core/gizmo.js';
 import { createVisualizationControls } from './ui/visualizationControls.js';
+import { ViewerUI } from './ui/viewerUI.js';
 import { MeshManager } from './runtime/meshManager.js';
 import { VisualizationManager } from './runtime/visualizationManager.js';
 
@@ -24,6 +25,9 @@ let axesGizmo = null;
 let meshManager = null;
 let vizManager = null;
 
+// UI system
+let viewerUI = null;
+
 // Debug visuals
 let targetMarker = null; // follows controls.target (rotation anchor)
 
@@ -33,42 +37,6 @@ let selectionFX = null;
 let pin = null;
 
 /* -------------------- Defaults -------------------- */
-const DEFAULT_GLB_URL = "./assets/fsaverage.glb";
-const LOADER_COMPONENT_PATH = "./loaders/spinning/spinning.html";
-
-// Loader control functions
-function setLoaderProgress(pct) {
-  // Progress tracking available for future use
-  // Currently plasma2 loader doesn't display percentage
-}
-
-async function initLoader() {
-  const loaderHost = document.getElementById("loaderHost");
-  if (!loaderHost) return;
-
-  try {
-    const response = await fetch(LOADER_COMPONENT_PATH);
-    const html = await response.text();
-    loaderHost.innerHTML = html;
-  } catch (err) {
-    console.error("Failed to load loader component:", err);
-    // Fallback: simple loading text
-    loaderHost.innerHTML = '<div style="color: #eaeaea; font-size: 14px;">Loading...</div>';
-  }
-}
-
-function showLoader() {
-  const el = document.getElementById("loaderOverlay");
-  if (!el) return;
-  el.classList.remove("hidden");
-  el.style.display = "flex"; // Ensure it's visible
-}
-
-function hideLoader() {
-  const el = document.getElementById("loaderOverlay");
-  if (!el) return;
-  el.classList.add("hidden");
-}
 
 // Pivot mode: recommended "MeshCenter" for FreeSurfer surfaces
 const PIVOT_MODE = "MeshCenter";
@@ -111,7 +79,7 @@ let vizGUI = null;
 
 /* -------------------- Viewer Initialization -------------------- */
 
-export function initViewer({ canvasEl, hudEl, glbUrl = DEFAULT_GLB_URL }) {
+export async function initViewer({ canvasEl, hudEl, glbUrl = null }) {
   canvas = canvasEl;
   hud = hudEl;
 
@@ -162,6 +130,13 @@ export function initViewer({ canvasEl, hudEl, glbUrl = DEFAULT_GLB_URL }) {
   viewerCore.onControlsChange(() => {
     axesGizmo.update(camera);
     updateTargetMarker();
+  });
+  
+  // Initialize UI system
+  viewerUI = new ViewerUI({
+    hudElement: hud,
+    loaderElement: document.getElementById("loaderHost"),
+    loadAnimationDuration: 1500
   });
   
   // Initialize picking system
@@ -234,60 +209,64 @@ export function initViewer({ canvasEl, hudEl, glbUrl = DEFAULT_GLB_URL }) {
   // Initial visualization sync
   vizManager?.applyState(vizState);
 
-  setHud(`Loading: ${glbUrl}`);
-
-  // Initialize loader component, then load GLB
-  initLoader().then(() => {
+  // Initialize loader component
+  await viewerUI.initLoader();
+  
+  // Load default mesh only if glbUrl is provided
+  if (glbUrl) {
     loadGLB(glbUrl).catch((err) => {
       console.error(err);
-      setHud(String(err));
+      viewerUI.showError(err);
     });
-  });
+  }
+}
+
+/**
+ * Handle post-load setup (shared by all loaders)
+ * @private
+ */
+function handlePostLoad() {
+  const loadedScene = meshManager.getLoadedScene();
+  const bounds = meshManager.getBounds();
+
+  console.log('[handlePostLoad] loadedScene:', loadedScene);
+  console.log('[handlePostLoad] bounds:', bounds);
+
+  // Set orbit pivot
+  setPivotMode(PIVOT_MODE);
+
+  // Apply visualization state
+  vizManager?.applyState(vizState);
+  
+  // Update debug visuals
+  updateTargetMarker();
+  
+  // Setup picking
+  pickingSystem?.collectPickables(loadedScene);
+  
+  // Scale pin to mesh size
+  if (pin) {
+    pin.setLength(bounds.radius * 0.1);
+  }
+  
+  console.log('[handlePostLoad] Complete');
 }
 
 export async function loadGLB(url) {
-  showLoader();
-  setLoaderProgress(0);
-
-  try {
-    await meshManager.loadGLB(url);
-    
-    // Post-load setup
-    const loadedScene = meshManager.getLoadedScene();
-    const modelRoot = meshManager.getModelRoot();
-    
-    // Set orbit pivot (recommended) - calculate before adding to scene
-    setPivotMode(PIVOT_MODE);
-
-    setHud(`Loaded: ${url}`);
-
-    // Hide loader after a frame and a short delay to let animation run
-    requestAnimationFrame(() => {
-      setLoaderProgress(100);
-      setTimeout(() => {
-        // Apply visualization state
-        vizManager?.applyState(vizState);
-        
-        updateTargetMarker();
-        
-        // Collect meshes for picking
-        pickingSystem?.collectPickables(loadedScene);
-        
-        // Set pin length relative to mesh scale
-        if (loadedScene && pin) {
-          const bounds = meshManager.getBounds();
-          pin.setLength(bounds.radius * 0.1);
-        }
-        
-        hideLoader();
-      }, 1500); // 1500ms delay to show loading animation
-    });
-  } catch (err) {
-    console.error(err);
-    setHud(String(err));
-    hideLoader();
-    throw err;
-  }
+  console.log('[loadGLB] Starting load:', url);
+  return viewerUI.withLoadingUI(
+    async () => {
+      await meshManager.loadGLB(url);
+      const scene = meshManager.getLoadedScene();
+      console.log('[loadGLB] Scene loaded:', scene);
+      return scene;
+    },
+    {
+      loadingMessage: `Loading: ${url}`,
+      successMessage: `Loaded: ${url}`,
+      onComplete: handlePostLoad
+    }
+  );
 }
 
 /**
@@ -295,52 +274,37 @@ export async function loadGLB(url) {
  * @param {string} url - Path to model file (.glb or .json)
  */
 export async function loadModel(url) {
-  return meshManager.loadModelFromUrl(url);
+  console.log('[loadModel] Called with url:', url);
+  const ext = url.split('.').pop().toLowerCase();
+  
+  if (ext === 'glb' || ext === 'gltf') {
+    return loadGLB(url);
+  } else if (ext === 'json') {
+    return loadJSON(url);
+  } else {
+    throw new Error(`Unsupported file format: ${ext}`);
+  }
 }
 
 /**
  * Load JSON geometry file
  * @param {string} url - Path to JSON geometry file
  */
-async function loadJSON(url) {
-  showLoader();
-  setLoaderProgress(0);
-  setHud(`Loading: ${url}`);
-
-  try {
-    await meshManager.loadJSON(url);
-    
-    setLoaderProgress(100);
-
-    // Post-load setup
-    const loadedScene = meshManager.getLoadedScene();
-    const bounds = meshManager.getBounds();
-
-    // Add to scene after short delay
-    setTimeout(() => {
-      // Apply visualization state
-      vizManager?.applyState(vizState);
-      
-      updateTargetMarker();
-      
-      // Collect meshes for picking
-      pickingSystem?.collectPickables(loadedScene);
-      
-      // Set pin length relative to mesh scale
-      if (pin) {
-        pin.setLength(bounds.radius * 0.1);
-      }
-      
-      setHud(`Loaded: ${url}`);
-      hideLoader();
-    }, 1500);
-
-  } catch (err) {
-    console.error(err);
-    setHud(String(err));
-    hideLoader();
-    throw err;
-  }
+export async function loadJSON(url) {
+  console.log('[loadJSON] Starting load:', url);
+  return viewerUI.withLoadingUI(
+    async () => {
+      await meshManager.loadJSON(url);
+      const scene = meshManager.getLoadedScene();
+      console.log('[loadJSON] Scene loaded:', scene);
+      return scene;
+    },
+    {
+      loadingMessage: `Loading: ${url}`,
+      successMessage: `Loaded: ${url}`,
+      onComplete: handlePostLoad
+    }
+  );
 }
 
 /* -------------------- Picking API -------------------- */
@@ -394,11 +358,4 @@ function installTargetMarker() {
 function updateTargetMarker() {
   if (!targetMarker || !controls) return;
   targetMarker.position.copy(controls.target);
-}
-
-/* --------------------------- helpers --------------------------- */
-
-function setHud(text) {
-  const hudText = document.getElementById("hudText");
-  if (hudText) hudText.textContent = text;
 }

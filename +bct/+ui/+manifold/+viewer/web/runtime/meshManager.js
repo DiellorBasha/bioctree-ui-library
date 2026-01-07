@@ -99,6 +99,9 @@ export class MeshManager {
     // GLB files are already Y-up from MATLAB export, no transform needed
     this.viewerCore.roots.threejs.add(this.modelRoot);
 
+    console.log('[MeshManager.loadGLB] Added to scene. modelRoot:', this.modelRoot);
+    console.log('[MeshManager.loadGLB] Scene children:', this.viewerCore.roots.threejs.children.length);
+
     return this.loadedScene;
   }
 
@@ -147,6 +150,9 @@ export class MeshManager {
     // Raw JSON data is in MATLAB Z-up coordinates and needs conversion
     this.viewerCore.roots.matlab.add(this.modelRoot);
 
+    console.log('[MeshManager.loadJSON] Added to scene. modelRoot:', this.modelRoot);
+    console.log('[MeshManager.loadJSON] Scene children:', this.viewerCore.roots.matlab.children.length);
+
     return this.loadedScene;
   }
 
@@ -154,11 +160,13 @@ export class MeshManager {
    * Clear the current model and dispose of resources
    */
   clearModel() {
+    console.log('[MeshManager.clearModel] Clearing model. Current modelRoot:', this.modelRoot);
     if (this.modelRoot) {
       // Remove from both possible frame roots (could be in either depending on file type)
       this.viewerCore.roots.threejs.remove(this.modelRoot);
       this.viewerCore.roots.matlab.remove(this.modelRoot);
       disposeObject3D(this.modelRoot);
+      console.log('[MeshManager.clearModel] Model removed and disposed');
     }
     this.modelRoot = null;
     this.loadedScene = null;

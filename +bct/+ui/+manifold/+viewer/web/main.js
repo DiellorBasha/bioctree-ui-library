@@ -59,8 +59,9 @@ async function main() {
   const canvas = document.getElementById("canvas");
   const hud = document.getElementById("hud");
 
-  // Default to fsaverage.glb, allow override via ?asset=...
-  const assetUrl = getParam("asset") ?? "./assets/fsaverage.glb";
+  // Allow loading specific asset via ?asset=... parameter (no default)
+  const assetUrl = getParam("asset");
+  console.log('[main] assetUrl from URL parameter:', assetUrl);
   
   // Setup picker control event listeners
   setupPickerControls();
@@ -68,13 +69,8 @@ async function main() {
   // Setup file loader controls
   setupFileLoader();
 
-  // Set initial dropdown value to match loaded file
-  const fileSelect = document.getElementById("fileSelect");
-  if (fileSelect) {
-    fileSelect.value = assetUrl;
-  }
-
-  // Initialize viewer (this also loads glbUrl by default)
+  // Initialize viewer (empty scene by default - use Load button to load mesh)
+  console.log('[main] Calling initViewer with glbUrl:', assetUrl);
   initViewer({ canvasEl: canvas, hudEl: hud, glbUrl: assetUrl });
 }
 
